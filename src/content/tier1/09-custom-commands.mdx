@@ -1,0 +1,153 @@
+---
+title: "Custom commands"
+tier: 1
+order: 9
+summary: "Turn repeated multi-step workflows into a single slash command — with full access to project context and Claude's tools."
+---
+
+**Custom commands** are Markdown files that become slash commands in Claude Code. Unlike ad-hoc prompts, they're versioned, shareable, and can encode project-specific context that would otherwise need retyping every session.
+
+## When to use it
+
+A custom command earns its place when:
+
+- You run the same multi-step workflow repeatedly (review + format + check types)
+- The workflow requires project-specific context that would be verbose to retype
+- You want a team member to be able to run the same workflow reproducibly
+- The task is long enough that typing it from scratch is annoying
+
+One-off tasks don't need commands. Commands are for the things you do every day on a project.
+
+## When NOT to use it
+
+- Tasks you run once — just type the prompt
+- Generic tasks that don't benefit from project context (a generic `/review` is barely better than typing "review this code")
+- Tasks that require dynamic input you can't anticipate — use `$ARGUMENTS` if possible, or just prompt
+
+## File locations
+
+```
+~/.claude/commands/         # user-scoped: available in all your projects
+.claude/commands/           # project-scoped: available to everyone on the project
+```
+
+Files must have `.md` extension. The filename (without `.md`) becomes the command name. A file at `.claude/commands/sync-schema.md` becomes `/sync-schema`.
+
+## Basic structure
+
+```markdown
+# Command title (optional — not shown to user)
+
+The instruction text that Claude Code will execute.
+Write it as you would write a task prompt: specific,
+imperative, with context.
+```
+
+No YAML frontmatter needed for basic commands. Just the instructions.
+
+## Arguments
+
+Use `$ARGUMENTS` anywhere in the file to pass user-provided input:
+
+```markdown
+# test-coverage
+
+Run `flutter test $ARGUMENTS --coverage` and analyze the coverage report.
+Show only files below 80% coverage. For each such file, identify the
+first public function or class with no test coverage.
+
+Do not create new test files — report findings only.
+```
+
+Invoke as: `/test-coverage lib/game_logic` or `/test-coverage` (with no path, it'll test everything).
+
+You can use `$ARGUMENTS` multiple times in the same command.
+
+## Building effective custom commands
+
+**A good custom command is specific to this project.** Compare:
+
+Weak:
+```markdown
+Review the code for quality issues.
+```
+
+Strong:
+```markdown
+Review the changed files in the current git diff for:
+1. Missing null safety in Dart (use `?.` not `!`)
+2. Direct widget state mutation (use providers instead)
+3. Any call to Nakama APIs outside of lib/services/
+4. Tests for new public methods
+
+Report issues by file and line number. Do not auto-fix — report only.
+```
+
+The second version knows what "quality" means for this project.
+
+## Multi-step workflows
+
+Commands can be sequences:
+
+```markdown
+# pre-commit
+
+Before I commit these changes, run this sequence and report any failures:
+
+1. Run `dart format --set-exit-if-changed .` — fail if unformatted files
+2. Run `flutter analyze` — fail if any warnings or errors
+3. Run `flutter test` — fail on any failing tests
+4. Show the full git diff for my review
+
+If any step fails, stop and report the failure. Do not proceed to the next step.
+```
+
+Invoke as `/pre-commit` before every commit. This is more reliable than a git pre-commit hook because it runs in Claude's session with full context — you can ask follow-ups.
+
+## Sharing and versioning
+
+Project-scoped commands in `.claude/commands/` are committed to git. This means:
+
+- Teammates get the same commands automatically
+- Commands evolve with the codebase via pull requests
+- You have a history of how workflows changed
+
+Good candidates for project commands: code review checklists, schema sync, test coverage analysis, deployment preflight checks.
+
+## Example — HOKM project commands
+
+**`.claude/commands/game-review.md`** — review game logic changes:
+
+```markdown
+Review the changed files in this diff for game logic issues specific
+to the HOKM/PASUR card game rules:
+
+1. Invalid card play detection — verify the isValidPlay() guard is called
+   before any state mutation
+2. Turn order enforcement — check that currentTurn advances correctly
+3. Nakama match state — verify all state changes go through updateMatchState()
+   and not through direct field mutation
+4. WebSocket events — every state change should emit a corresponding event
+
+Report issues with file:line references. No fixes, just report.
+```
+
+**`.claude/commands/nakama-check.md`** — verify Nakama integration:
+
+```markdown
+Check the current Nakama integration for common issues:
+1. Run `docker compose ps` to verify nakama is running
+2. Test the health endpoint: `curl http://localhost:7350/healthcheck`
+3. Run `flutter test test/integration/` for integration tests
+
+If any step fails, diagnose the failure before reporting.
+Report status of each check.
+```
+
+<details>
+<summary>Common pitfall: commands that duplicate what CLAUDE.md already covers</summary>
+
+If your CLAUDE.md says "don't use BLoC, use Riverpod," you don't need a review command that checks for BLoC — Claude already has that context. A custom command adds value when it's a *workflow* (sequence of actions, specific checks, specific reporting format) not when it's a rule that belongs in CLAUDE.md.
+
+Also: keep commands focused. A command that does "review + fix + test + commit" is hard to trust. Commands that report without acting are safer to run routinely.
+</details>

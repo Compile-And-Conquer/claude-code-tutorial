@@ -1,0 +1,149 @@
+---
+title: "Headless mode / CI"
+tier: 1
+order: 10
+summary: "Run Claude Code non-interactively in pipelines, scripts, and GitHub Actions."
+---
+
+**Headless mode** is Claude Code running without a human in the loop — in a CI pipeline, a pre-commit hook, a scheduled job, or a shell script. The core mechanism is the `-p` (print) flag: it takes a query, runs it, prints output, and exits.
+
+## When to use it
+
+- **CI code review** — automatically review PRs for project-specific issues before human review
+- **Test analysis** — on test failure, ask Claude to diagnose the failure and suggest a fix
+- **Pre-commit checks** — run a Claude analysis as part of git hooks
+- **Scheduled maintenance** — run dependency audits, dead code checks, or coverage reports on a schedule
+- **Scripted one-off tasks** — parse/transform files as part of a build pipeline
+
+## When NOT to use it
+
+- Tasks that require back-and-forth — headless mode can't ask clarifying questions
+- Tasks where you want to review each step — use interactive mode instead
+- Replacing your test suite — Claude's output is non-deterministic; tests are not
+
+## The `-p` flag
+
+```bash
+# Basic usage
+claude -p "Review lib/game_logic.dart for null safety issues"
+
+# With piped input
+cat server/rpc/match_handler.go | claude -p "Summarize what this RPC handler does"
+
+# Read file directly
+claude -p "What does this function do?" < src/services/nakama_service.dart
+
+# JSON output (structured)
+claude -p "List all TODO comments in lib/ as JSON" --output-format json
+
+# Streaming JSON (for long tasks)
+claude -p "Analyze test coverage" --output-format stream-json
+```
+
+## Key flags
+
+| Flag | What it does |
+|---|---|
+| `-p "query"` | Non-interactive mode; runs query and exits |
+| `--output-format text\|json\|stream-json` | Controls output format |
+| `--max-turns N` | Limits agentic turns (stops when reached) |
+| `--max-budget-usd X.XX` | Stops when spend limit reached |
+| `--verbose` | Shows full turn-by-turn reasoning |
+| `--bare` | Disables CLAUDE.md, hooks, MCP, memory — minimal environment |
+| `--no-session-persistence` | Don't save the session transcript |
+
+**`--max-turns` is important in CI.** A headless task that can run indefinitely will eventually time out or exhaust budget. Set it to a reasonable ceiling (5–15 turns for most review tasks).
+
+## Authentication
+
+Claude Code uses the subscription credentials from `claude auth login`. For CI environments where you can't run an interactive login:
+
+```bash
+# Generate a long-lived OAuth token
+claude setup-token
+# Prints a token — store it as a CI secret (CLAUDE_CODE_TOKEN or similar)
+```
+
+This token doesn't require a browser login flow and is suitable for pipelines.
+
+## GitHub Actions pattern
+
+```yaml
+# .github/workflows/claude-review.yml
+name: Claude Code Review
+on: [pull_request]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Run review
+        env:
+          CLAUDE_CODE_TOKEN: ${{ secrets.CLAUDE_CODE_TOKEN }}
+        run: |
+          claude -p "
+            Review the changed files in this PR for:
+            1. Any Dart null safety violations (! operator without guard)
+            2. Direct Nakama API calls outside lib/services/
+            3. Missing error handling in WebSocket event handlers
+            Report issues with file:line references. Be concise.
+          " \
+          --max-turns 10 \
+          --output-format json
+```
+
+## Output format
+
+**`--output-format json`** returns a single JSON object at the end:
+
+```json
+{
+  "result": "The review found 2 issues:\n1. ...",
+  "session_id": "abc123",
+  "cost": { "input_tokens": 1200, "output_tokens": 300 }
+}
+```
+
+**`--output-format stream-json`** streams events as they happen:
+
+```json
+{"type": "assistant", "message": "Analyzing..."}
+{"type": "tool_use", "tool": "Read", "input": {"file_path": "..."}}
+{"type": "result", "result": "Found 2 issues..."}
+```
+
+Use `stream-json` when you want to show progress in a long task, or when parsing intermediate tool calls.
+
+## The `--bare` flag
+
+`--bare` disables CLAUDE.md loading, hooks, MCP servers, memory, and skills — leaving only the core tools (Bash, Read, Edit, Write). Faster startup, more predictable behavior, no project-specific context.
+
+Use `--bare` for:
+- Generic scripts that run across multiple unrelated projects
+- When you explicitly don't want CLAUDE.md context (e.g., a security scan that shouldn't be influenced by developer instructions)
+- Performance-sensitive pipelines where startup time matters
+
+Don't use `--bare` when:
+- The task needs project context (CLAUDE.md conventions)
+- The task uses hooks for guardrails
+- You have MCP servers the task needs
+
+## Best practices
+
+1. **Always set `--max-turns`.** Unbounded agentic runs can get expensive and time out.
+2. **Test interactively first.** Develop the prompt in interactive mode, then promote it to headless once you're satisfied with the output quality.
+3. **Use `--output-format json`** when parsing output in scripts. Don't parse plain text output — it's not stable.
+4. **Commit review scripts to `.claude/scripts/`** so they're versioned and auditable.
+
+<details>
+<summary>Common pitfall: running headless with bypassPermissions in CI</summary>
+
+`bypassPermissions` in a CI context means Claude can execute any shell command, write to any file, and make any API call without any check. If the prompt or the codebase being analyzed causes Claude to misinterpret something, there's no safety net.
+
+The safer pattern: use an explicit `--allowedTools` allowlist that gives Claude only the tools it needs for the specific task. A review task needs `Read`, `Glob`, `Grep` — not `Bash` and not `Write`. Scope it tightly.
+</details>

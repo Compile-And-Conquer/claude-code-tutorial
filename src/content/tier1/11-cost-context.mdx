@@ -1,0 +1,117 @@
+---
+title: "Cost & context"
+tier: 1
+order: 11
+summary: "Keep sessions focused, understand what consumes tokens, and avoid the patterns that make long sessions expensive and unreliable."
+---
+
+**Context window** is the finite memory a Claude session holds. Everything — your messages, Claude's responses, every file it reads, every tool call output — accumulates in this window. When it fills, behavior degrades before it errors. **Cost** is what you pay (in tokens or rate-limit headroom) for that context. Managing both is a practical skill.
+
+## What consumes context
+
+In rough order of impact:
+
+1. **File reads** — every file Claude opens stays in context for the rest of the session
+2. **Tool call output** — shell command output, grep results, directory listings
+3. **Long conversations** — every back-and-forth turn compounds
+4. **CLAUDE.md** — loaded at start and occupies context for the whole session
+5. **MCP tool responses** — external API results can be verbose
+
+Understanding this helps you see why a session that started sharp gets slower and less accurate after an hour of multi-file edits.
+
+## The context counter
+
+Claude Code shows a context usage indicator in the session. When it approaches capacity:
+
+- Responses become less precise about files touched earlier
+- Claude may re-read files it already read (burning more context)
+- Instructions from early in the session get "forgotten" in practice
+
+Don't wait for the warning. `/compact` early and often on long sessions.
+
+## `/compact` — compress and continue
+
+`/compact` summarizes the current conversation into a brief history and discards the raw turn-by-turn exchange. You keep working; the session continues from the summary.
+
+**Use it:** When you've finished a major subtask and are moving to a new one. After debugging a specific issue. After a long research phase before moving to implementation.
+
+**Don't use it:** When the exact intermediate state matters (the files you just edited, the specific error output). The summary loses detail.
+
+**`/compact` vs `/clear`:**
+
+- `/compact` → summarize history, continue working
+- `/clear` → wipe everything, fresh start
+
+If you've completed a coherent task unit, `/compact`. If the session is confused or you're starting something unrelated, `/clear`.
+
+## Strategies for focused sessions
+
+**1. One task per session.** Start fresh with `/clear` at the beginning of each distinct task. Don't carry context across unrelated changes — it's not useful and it's expensive.
+
+**2. Use subagents for research.** Reading 15 files to understand a module before implementing burns all 15 files into your main context. Move research to a subagent; only the summary comes back.
+
+**3. Scope file reads.** When Claude reads files, it reads the whole file. For large files, ask it to read specific sections:
+
+<PromptBlock>
+Read only the GameState class from lib/providers/game_provider.dart,
+not the whole file. I need to understand the state transitions only.
+</PromptBlock>
+
+**4. Compact between phases.** A planning phase + implementation phase is two distinct things. Compact between them:
+
+<PromptBlock>
+We've finished planning. Before implementation, compact the conversation
+so we have context budget for the actual code changes.
+</PromptBlock>
+
+**5. Keep CLAUDE.md lean.** CLAUDE.md loads into every session. A 500-line CLAUDE.md means 500 lines of context used before any work starts. Target under 200 lines.
+
+## Cost model for Pro/Max subscribers
+
+On Pro/Max plans, Claude Code uses your subscription's message limits rather than a per-token API cost. The practical implication:
+
+- **Long sessions with lots of file reads** can hit rate limits before you'd expect
+- **Subagent-heavy workflows** count as multiple sessions
+- **`--max-turns` in headless runs** directly controls how much of your daily budget a single automated task consumes
+
+You can set a per-invocation spend limit with `--max-budget-usd` when you eventually switch to API access.
+
+## Model selection and trade-offs
+
+`/model` changes the model for the current session. The models available depend on your subscription:
+
+| Model | Good for | Avoid for |
+|---|---|---|
+| Claude Opus 4 | Complex multi-file architecture, reasoning-heavy tasks | Routine edits, quick lookups |
+| Claude Sonnet 4 | Most development work — good balance | When you need extended reasoning |
+| Claude Haiku 4 | Fast lookups, simple tasks, headless scripts | Anything requiring long multi-step reasoning |
+
+For Claude Code work: Sonnet 4 is the right default. Use Opus when you're doing something architecturally complex and want deeper reasoning. Haiku is rarely the right choice for interactive sessions but works well for CI scripts where speed matters.
+
+## Practical session hygiene
+
+```
+Start of session
+  → cd to project root
+  → claude
+  → check CLAUDE.md is up to date
+
+Every 20-30 minutes on active sessions
+  → check context indicator
+  → /compact if completing a subtask
+
+End of research / start of implementation
+  → /compact
+
+Confused session (Claude contradicting itself or re-doing work)
+  → /clear and start fresh — compacting a confused session
+    preserves the confusion in the summary
+```
+
+<details>
+<summary>Common pitfall: compacting a confused session instead of clearing it</summary>
+
+`/compact` summarizes whatever is in the context, including wrong assumptions and contradictions. If Claude has spent the last 10 turns going in circles on a misunderstood requirement, compacting that will bake the misunderstanding into the summary.
+
+The rule: compact productive sessions, clear confused ones. If the session is saying things that are factually wrong about your codebase, `/clear` and re-prompt with the corrected context. The 10 turns of noise aren't worth preserving.
+</details>

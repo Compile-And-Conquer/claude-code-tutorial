@@ -1,0 +1,150 @@
+---
+title: "Permissions & allowed-tools"
+tier: 1
+order: 8
+summary: "Scope what Claude can do per project — the difference between a useful agent and an unsupervised one."
+---
+
+**Permissions** in Claude Code control which tools Claude can use, which paths it can read or write, and how much human approval is required for each action. Getting this right is the difference between a productive session and one where you're approving every file read.
+
+## Permission modes
+
+Set via `defaultMode` in `settings.json` or per-invocation with `--permission-mode`:
+
+| Mode | Behavior |
+|---|---|
+| `default` | Prompts on every tool use |
+| `acceptEdits` | Auto-approves file edits; prompts for Bash |
+| `plan` | Shows a plan before execution; user confirms |
+| `auto` | AI classifier auto-approves low-risk operations |
+| `dontAsk` | Auto-approves all tool use |
+| `bypassPermissions` | Skips all permission checks |
+
+**`auto` mode is the right default for trusted projects.** It uses an AI classifier to distinguish "read a file" (low risk, auto-approve) from "run a shell command" (higher risk, prompt). For most development work it gives a good balance.
+
+<Callout type="warning">
+`auto` mode is silently ignored if set in `.claude/settings.json` or `.claude/settings.local.json`. This is intentional: a project repo shouldn't be able to grant itself elevated permissions. Set `auto` mode in `~/.claude/settings.json` (user-level) instead.
+</Callout>
+
+## Granular rules
+
+Use the `permissions` object in `settings.json` for specific allow/deny/ask rules:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(flutter *)",
+      "Bash(dart *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Read(~/.zshrc)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(curl *)",
+      "Read(./.env*)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(docker *)"
+    ]
+  }
+}
+```
+
+**Evaluation order: Deny → Ask → Allow.** First match wins. If a command matches a `deny` rule, it's blocked regardless of any `allow` rules.
+
+Rule syntax: `ToolName(pattern)` where pattern is a glob. `Bash(npm run *)` matches any `npm run ...` command. Omitting the pattern (`"Read"`) matches all uses of that tool.
+
+## Scope hierarchy
+
+Rules from all scopes are **merged** (not overridden):
+
+| Scope | File | Shared? |
+|---|---|---|
+| Managed (org) | MDM-configured | Enforced |
+| User | `~/.claude/settings.json` | No |
+| Project | `.claude/settings.json` | Yes (git-tracked) |
+| Local | `.claude/settings.local.json` | No (gitignore it) |
+
+Deny rules from any scope block regardless of allow rules from another scope. A user-level `deny` overrides a project-level `allow`.
+
+## Per-invocation flags
+
+For CI or one-off runs, use flags instead of settings files:
+
+```bash
+# Allow specific tools only
+claude -p "run tests and report" \
+  --allowedTools "Bash(npm test)" "Read" "Bash(npm run lint)"
+
+# Disallow specific tools
+claude -p "review the code" \
+  --disallowedTools "Bash" "Write" "Edit"
+```
+
+These flags are per-invocation and don't affect your `settings.json`.
+
+## Practical configuration
+
+**Minimal project `settings.json`** — approve edit-heavy work but block network and destructive commands:
+
+```json
+{
+  "defaultMode": "acceptEdits",
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(flutter *)",
+      "Bash(dart format *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git log *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(git push --force*)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ]
+  }
+}
+```
+
+**User `~/.claude/settings.json`** — global defaults for your machine:
+
+```json
+{
+  "defaultMode": "auto",
+  "permissions": {
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(rm -rf /*)
+    ]
+  }
+}
+```
+
+## When to lock things down
+
+Start with `acceptEdits` on a new project. As you build confidence with what Claude does, loosen toward `auto`. Tighten again if:
+
+- Claude starts touching paths you didn't expect
+- You're working near production configuration
+- You're doing a risky refactor and want more visibility
+
+Never use `bypassPermissions` for development work — it's for automated CI pipelines that have already been audited. For those, see [Headless mode / CI](/tier1/10-headless-mode).
+
+<details>
+<summary>Common pitfall: setting deny rules in project settings and wondering why auto mode isn't working</summary>
+
+`auto` mode must be in user settings. Project settings can add `deny` rules but can't elevate trust — only restrict it. If you set `"defaultMode": "auto"` in `.claude/settings.json`, it's silently ignored and the session falls back to `default` (prompt on everything). The correct split: trust escalation in user settings, project-specific restrictions in project settings.
+</details>
