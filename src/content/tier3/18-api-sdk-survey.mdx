@@ -1,0 +1,122 @@
+---
+title: "API/SDK survey"
+tier: 3
+order: 18
+summary: "What's available when you move from Pro/Max to the Anthropic API — models, caching, batch, tool use, extended thinking, and computer use."
+---
+
+This is a map of what exists in the Anthropic API for when you move beyond a Pro/Max subscription. None of this requires a subscription upgrade to understand; it's worth knowing the landscape before you need it.
+
+All API docs at [docs.anthropic.com](https://docs.anthropic.com/en/docs/).
+
+---
+
+## Models
+
+Three model families, each with a capability/cost trade-off:
+
+| Model | Best for | Latency |
+|---|---|---|
+| **Claude Opus 4** | Complex reasoning, architecture, nuanced judgment | Slower |
+| **Claude Sonnet 4** | Most production workloads — best balance | Medium |
+| **Claude Haiku 4** | High-volume simple tasks, fast responses needed | Fast |
+
+For a side project API integration: start with Sonnet 4. Upgrade to Opus 4 for tasks where quality matters more than cost. Downgrade to Haiku 4 for anything that runs at scale and doesn't require deep reasoning.
+
+Model IDs change with versions — always check the [models page](https://docs.anthropic.com/en/docs/about-claude/models) for current IDs. The model you use in code is referenced by a versioned string, not "latest."
+
+---
+
+## Prompt caching
+
+Prompt caching stores frequently-used portions of your prompt on Anthropic's servers and reuses them across requests. A cache hit is significantly cheaper and faster than re-sending the content each time.
+
+**When it matters:** When you have a large, static system prompt or a large reference document (API spec, codebase context) that you send with every request. Without caching, you pay full input cost every time.
+
+**How it works:** Mark cache breakpoints with `"cache_control": {"type": "ephemeral"}` in your message content. The cached content must be at least 1024 tokens. Cache TTL is 5 minutes by default; re-sending within the TTL gets a cache hit.
+
+**Example use case:** A coding assistant that always sends your 5000-token CLAUDE.md equivalent as system context. With caching: pay full price once per 5 minutes, fraction of that for every subsequent request.
+
+This is one of the highest-impact API optimizations available. For any app with large static context, implement it from the start.
+
+---
+
+## Batch API
+
+The Batch API processes requests asynchronously at 50% discount compared to real-time requests. You submit a batch of up to 100,000 requests, and results are available within 24 hours (usually much sooner).
+
+**When it matters:** Large-scale processing where you don't need real-time results — analyzing a backlog of customer feedback, processing a dataset, generating variations at scale.
+
+**Not useful for:** Interactive features, anything the user is waiting on.
+
+---
+
+## Tool use
+
+Tool use (also called function calling) lets Claude call functions you define. You describe the functions in the API request; Claude decides when to call them and with what arguments; you execute the function and return the result; Claude incorporates the result into its response.
+
+**Example tools for a game platform:**
+```json
+{
+  "name": "get_match_state",
+  "description": "Retrieve the current state of a Nakama match",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "match_id": {"type": "string", "description": "The match ID"}
+    },
+    "required": ["match_id"]
+  }
+}
+```
+
+Tool use is what powers Claude Code's ability to read files, run commands, and call APIs. When you build agents with the API, tool use is the mechanism for connecting Claude to your systems.
+
+**Key distinction from MCP:** Tool use in the API is synchronous — you define the tools, Claude calls them, you execute them, Claude continues. MCP is a protocol for connecting pre-built tool servers. For custom tools in your own app, use the API's tool use directly.
+
+---
+
+## Extended thinking
+
+Extended thinking gives Claude additional computation time to reason step-by-step before responding. It's most visible in responses to complex problems where the intermediate reasoning matters.
+
+**When it helps:** Multi-step math/logic, complex architecture decisions, code that requires reasoning about invariants, anything where "think harder" would improve the result.
+
+**When it's overkill:** Straightforward tasks, extraction, simple generation. Extended thinking adds latency and cost; don't use it by default.
+
+Available on Opus 4 and Sonnet 4 in the API via the `thinking` parameter in the request.
+
+---
+
+## Computer use
+
+Computer use gives Claude a virtual screen, keyboard, and mouse — it can navigate GUIs, fill forms, click buttons, and interact with applications visually. It's explicitly experimental and slower/more expensive than tool use.
+
+**Current practical use cases:**
+- Automating tasks in legacy systems that don't have APIs
+- Testing UI flows (as a supplement to, not replacement for, automated tests)
+- Demonstrations of agent capability
+
+**For side project work:** Probably not what you need yet. If your systems have APIs (and they should), use tool use. Computer use is for the cases where there's genuinely no programmatic interface.
+
+---
+
+## Agent SDK / Managed Agents
+
+Anthropic provides an Agent SDK for building multi-agent systems with the API. This is the programmatic equivalent of Claude Code's subagent system — you define agent roles, tool access, and coordination patterns in code.
+
+Relevant when you're building your own agent orchestration (not just using Claude Code). The SDK handles agent lifecycle, tool routing, and result aggregation.
+
+---
+
+## Migrating from Pro/Max to API
+
+When you're ready to add Claude capabilities to your own app:
+
+1. Create an Anthropic Console account at [console.anthropic.com](https://console.anthropic.com)
+2. Start with the Anthropic SDK (Python or TypeScript) — `npm install @anthropic-ai/sdk`
+3. Implement prompt caching from the start if your context is large
+4. Use Sonnet 4 as your default model
+5. Set `max_tokens` explicitly — there's no default and an unset limit can cause unexpected truncation
+
+The API is pay-per-token. Monitor usage in the Console dashboard. For a side project in early testing, costs are typically negligible; they scale with user growth.

@@ -1,0 +1,104 @@
+---
+title: "Marketing workflows"
+tier: 3
+order: 17
+summary: "Landing page copy, SEO content, and launch posts — what Claude does well and the patterns that produce usable output."
+---
+
+Claude is useful for developer-led marketing work: writing first drafts fast, adapting tone, generating variants, and filling in structured content formats. The output needs editing — it won't know your voice or your users as well as you do — but it eliminates the blank-page problem and handles the structural work.
+
+## Landing page copy
+
+The key to getting usable landing page copy: give Claude the ICP and the differentiation, not just "write copy for my app."
+
+```text
+Write landing page copy for HOKM Online — a multiplayer platform
+for Persian card games (HOKM, PASUR, Shelem, 7-e-Khabis).
+
+Audience: Persian-speaking expats in North America and Europe,
+25–45, who grew up playing these games and want to play with
+family/friends across time zones. They know the games fluently.
+
+Differentiation:
+- The only platform that does all 4 major Persian card games
+- Real-time with bots that sub in when players disconnect
+- No account required to play (just share a link)
+
+Sections needed:
+- Hero: headline + subhead (not generic "Play anywhere, anytime")
+- Problem: 2–3 sentences on the specific pain
+- Feature highlights: 3 cards, concrete and specific
+- Social proof placeholder
+- CTA
+
+Voice: direct, warm, assumes the reader knows these games.
+Don't explain what HOKM is.
+```
+
+The "don't explain what HOKM is" instruction tells Claude the audience already has the context — a common oversight that produces patronizing copy.
+
+## SEO content drafts
+
+Claude is fast at drafting structured SEO content given a keyword and brief:
+
+```text
+Write a 600-word article targeting the query "play HOKM online with
+friends." Structure:
+
+- H1 matching the query
+- Short intro (2 sentences)
+- H2: How online HOKM works (brief, practical)
+- H2: What to look for in an online HOKM platform
+- H2: Playing HOKM across time zones (the specific use case)
+- CTA pointing to [platform URL]
+
+Facts to work in: supports 4 players, real-time, bot substitution
+for disconnected players. Don't invent features.
+```
+
+Review and edit before publishing — Claude will sometimes add hedges ("may offer," "might consider") that kill SEO content, or make claims you haven't verified.
+
+## Launch posts
+
+For Product Hunt launches, social posts, or newsletter announcements, give Claude the format constraints and let it draft:
+
+```text
+Write a Product Hunt launch post for HOKM Online.
+
+Tagline: [your tagline]
+First paragraph: what it is, who it's for, one specific use case
+Second paragraph: what makes it different from generic game platforms
+Third paragraph: why I built this (brief, authentic)
+CTA: Try it / upvote
+
+Keep it under 250 words. First-person. No hype words
+("revolutionary," "game-changing," "ultimate"). Don't use emoji.
+```
+
+Generate 2–3 variants and pick the best parts from each.
+
+## Tone calibration
+
+If Claude's default tone doesn't match your voice, calibrate it early:
+
+```text
+Here's an example of my writing: [paste a paragraph you've written]
+
+Write [the thing] in this voice — same directness, similar sentence length.
+```
+
+Giving Claude an example of your own writing produces more accurate imitation than describing the voice abstractly ("professional but casual").
+
+## What Claude is bad at for marketing
+
+- **Knowing your actual users** — it writes for a generic version of your ICP, not the specific people you've talked to
+- **Generating hooks** — it can write competent copy but struggles with the genuinely surprising angle; those usually come from a real customer quote or unexpected insight
+- **Final polish** — Claude's marketing writing is competent but predictable; it needs a human editor to find the specific, unexpected detail that makes copy memorable
+
+<details>
+<summary>Common pitfall: publishing first-draft Claude copy without editing</summary>
+
+Claude marketing copy is recognizable: parallel structure, balanced hedges, generic differentiators. "The only platform that..." followed by three bullet points, each starting with a verb. It reads fine; it doesn't stand out.
+
+Use Claude for structure and coverage. Edit for voice, specificity, and the single unexpected line that makes someone remember the piece. That line almost always comes from a real customer conversation or your own unexpected observation about the product.
+</details>

@@ -1,0 +1,101 @@
+---
+title: "Research workflows"
+tier: 3
+order: 16
+summary: "Using Claude for competitor analysis, customer research, and market positioning — what works and what doesn't."
+---
+
+Claude is a useful research assistant for early-stage side projects: fast at synthesizing information, good at identifying patterns across multiple sources, and able to structure findings in whatever format you need. It's not a replacement for primary research but it handles a lot of the preliminary work.
+
+## Competitor analysis
+
+**What works:**
+Claude can survey what competing products exist, summarize their positioning, features, and pricing, and identify patterns. With Research mode on claude.ai, it can do this in a structured pass across multiple sources.
+
+```text
+I'm building a multiplayer card game platform (HOKM, PASUR — Persian
+card games). Survey the competitive landscape:
+
+1. Name the top 5 multiplayer board/card game platforms (mobile + web)
+2. For each: monetization model, real-time backend technology
+   (if known), mobile app quality (App Store rating), primary audience
+3. Identify any that target Middle Eastern / Persian-language markets
+4. What's missing from all of them that a focused Persian card game
+   platform could own?
+
+Cite sources. Be specific — no generic "consider your competition" advice.
+```
+
+**What doesn't work:**
+Real-time pricing data, app store rankings, recent funding news. Claude's knowledge has a cutoff; for current data, it needs Research mode or you need to provide sources.
+
+**For technical evaluation** (e.g., Nakama vs Colyseus):
+Claude is good at technical comparisons when you provide the dimension list:
+
+```text
+Compare Nakama and Colyseus for a real-time multiplayer card game:
+- Self-hosting vs managed hosting options
+- Language for server-side logic (Go/TypeScript etc.)
+- WebSocket support and reconnection handling
+- Matchmaking primitives
+- Community and maintenance status
+
+I'm hosting on a VPS. My priority is real-time turn management
+with bot substitution. I know Go and Dart.
+```
+
+## Customer interview synthesis
+
+If you're doing customer discovery, Claude is good at synthesizing transcripts into findings. The workflow:
+
+1. Conduct interviews yourself (5–10 people)
+2. Paste transcripts (or notes) in batches
+3. Ask Claude to extract patterns
+
+```text
+These are notes from 8 interviews with Persian expats in North America
+about how they stay connected with family culture. Extract:
+
+1. The specific activities they miss most
+2. What they currently use (if anything) for multiplayer card games
+3. Friction points with existing solutions
+4. Willingness to pay indicators (what they said or implied)
+
+Here are the notes: [paste]
+```
+
+Claude handles the synthesis; you judge the patterns. Don't ask Claude to draw conclusions you haven't validated — use it to surface patterns you then verify.
+
+## ICP definition
+
+Once you have interview data and market research, Claude is useful for drafting an ICP (Ideal Customer Profile):
+
+```text
+Based on the interview synthesis and competitor research above,
+draft an ICP for the HOKM platform. Include:
+
+- Demographic and geographic specifics (not generic "tech-savvy")
+- The specific pain they have that we're solving
+- What they're currently doing instead
+- How they'd describe the value in their own words
+- One sentence: why this person buys vs. why they don't
+
+Be specific. If the data doesn't support a claim, say so.
+```
+
+The "if the data doesn't support a claim, say so" instruction is important — it stops Claude from inventing specifics when you haven't provided them.
+
+## What Claude is bad at for research
+
+- **Primary source verification** — Claude can't call people, run surveys, or access paywalled data
+- **Real-time market data** — pricing, rankings, recent news without Research mode
+- **Knowing your specific users** — it can synthesize research you give it but can't replace talking to users
+- **Predicting market outcomes** — it can frame risks but not tell you if your idea will work
+
+<details>
+<summary>Common pitfall: using research output as a substitute for talking to users</summary>
+
+Claude can synthesize competitor research, draft personas, and structure frameworks — but none of that is customer discovery. Personas derived from Claude's training data reflect average internet opinions, not your specific target users.
+
+Use Claude to prepare for research (questions to ask, dimensions to analyze, frameworks to apply) and to synthesize research you did. Don't use it to generate the research itself.
+</details>

@@ -1,0 +1,83 @@
+---
+title: "claude.ai for developers"
+tier: 3
+order: 15
+summary: "Projects, Artifacts, Research mode, Skills, and Connectors — what each does and when to use it over Claude Code."
+---
+
+**claude.ai** is the web interface for Claude. For developers it's most useful for tasks that don't need filesystem access or tool execution — architecture discussions, document review, writing, research, and synthesizing information from multiple sources. Claude Code is the right tool when you need to touch a codebase; claude.ai is the right tool for everything else.
+
+## Projects
+
+A Project is a persistent context container in claude.ai. You set a system prompt and can add documents, and every conversation in the project starts with that context pre-loaded.
+
+**Useful for:**
+- Long-running side projects where you want Claude to remember your tech stack and decisions across sessions
+- Keeping context for a specific task area (e.g., all your marketing copy conversations for one product)
+- Shared team knowledge when team members work on the same Claude Pro/Team account
+
+**Limitations:**
+- Project context is not synced with your actual codebase — it's static documents you upload, not live file reads
+- Doesn't replace `CLAUDE.md` for Claude Code sessions — those are separate
+- Pro/Max users get Projects; check current limits at [claude.ai](https://claude.ai)
+
+**Setup:**
+Add your key project documents (architecture overview, API reference, design decisions) as uploaded files in the Project. Write a system prompt that establishes context and preferred behavior.
+
+## Artifacts
+
+When Claude generates content that stands alone — code snippets, documentation, diagrams, HTML pages — it can render it as an **Artifact**: a sidebar panel you can edit, copy, or export independently from the conversation.
+
+**Useful for:**
+- Iterating on a document or page without cluttering the conversation
+- Generating and testing HTML/JS/CSS in a preview pane
+- Exporting polished content (blog posts, READMEs, specs) directly
+- Visualizing data as charts or tables
+
+For developers, Artifacts are most valuable during design and documentation phases — not for code that needs to run in your environment (use Claude Code for that).
+
+## Research mode
+
+Research mode sends Claude on a multi-step web research task: it formulates search queries, reads multiple sources, synthesizes findings, and presents a structured report with citations. It takes minutes rather than seconds.
+
+**Useful for:**
+- Competitor analysis ("what do the top 5 multiplayer game backends offer?")
+- Technology evaluation ("compare Nakama vs Colyseus for a card game backend")
+- Customer research synthesis
+- Understanding a market before building in it
+
+**Not useful for:**
+- Quick factual lookups (regular Claude is faster)
+- Codebase research (Claude Code, obviously)
+- Anything requiring private data access
+
+Research mode is a Pro/Max feature. The results are more thorough than a single Claude response but less targeted than your own research — use it for initial orientation, not final decisions.
+
+## Skills (in claude.ai)
+
+Skills are slash commands available in claude.ai conversations, similar to Claude Code's bundled skills but for the web interface. Examples: `/summarize`, `/translate`, `/reformat`.
+
+**For developers:** less relevant than Claude Code's skill system. The web-based skills are primarily productivity shortcuts, not developer tools.
+
+## Connectors
+
+Connectors let claude.ai access external services: Google Drive, GitHub, Jira, Slack, and others. When connected, Claude can read documents and data from those sources without you copy-pasting.
+
+**Useful for:**
+- Asking Claude to analyze a Google Doc you're working on
+- Reviewing GitHub issues and PRs in a conversational interface
+- Synthesizing Jira ticket context for a planning session
+
+**For side project work:** Connectors are most useful when your project data lives in these services and you want to ask strategic questions about it — not for code execution. Compare an MCP server in Claude Code (direct tool calls during coding) vs. a Connector in claude.ai (conversational access to documents).
+
+## When to use claude.ai vs Claude Code
+
+| Task | Tool |
+|---|---|
+| Write code, edit files, run tests | Claude Code |
+| Architecture discussion, design review | claude.ai |
+| Research a technology or market | claude.ai (Research mode) |
+| Review a PRD or design doc | claude.ai (with Connector or upload) |
+| Marketing copy, launch posts | claude.ai |
+| Automated CI checks | Claude Code (headless) |
+| Ad-hoc question about a library | Either |
