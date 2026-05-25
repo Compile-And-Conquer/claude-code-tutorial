@@ -1,0 +1,164 @@
+---
+title: "Prompt engineering for agents"
+tier: 2
+order: 12
+summary: "How to write prompts that produce reliable agent behavior — structure, constraints, output format, and the patterns that prevent drift."
+---
+
+Prompting Claude Code is not the same as prompting a chatbot. You're instructing an agent that will take a sequence of autonomous actions. A vague prompt doesn't produce a vague response — it produces a sequence of actions you didn't intend and often can't easily undo.
+
+## Be explicit about scope
+
+The most important prompt engineering principle for agents: **specify the exact scope of change**.
+
+Weak:
+```
+Improve the error handling in the Nakama service.
+```
+
+Better:
+```
+In lib/services/nakama_service.dart, add try-catch blocks around
+the three methods that make HTTP calls (listMatches, createMatch,
+joinMatch). Catch NakamaException specifically, log it with the
+request context, and rethrow as a domain-specific MatchServiceException.
+Do not change method signatures or callers.
+```
+
+The difference: the second prompt specifies files, methods, exception types, and the constraint "do not change callers." Claude can't scope-creep into refactoring the rest of the service.
+
+## Separate planning from execution
+
+Always useful for anything beyond trivial changes:
+
+<PromptBlock>
+Plan only (no code yet): [describe the task]
+
+List the files you'll change and what you'll change in each.
+Identify any risks or edge cases. Wait for my approval.
+</PromptBlock>
+
+The plan surfaces misunderstandings before code is written. See [Plan mode](/tier1/04-plan-mode) for the full pattern.
+
+## Define the output format explicitly
+
+Agents generate output that you then have to interpret. Specifying format reduces interpretation work:
+
+<PromptBlock>
+Review lib/game_logic/ for violations of the HOKM turn-order rules.
+Report findings as a markdown list:
+- File: [path], Line: [N], Issue: [description]
+
+If no issues found, respond with: "No violations found."
+Do not suggest fixes — report only.
+</PromptBlock>
+
+"Report only" is particularly useful. It separates the analysis step from the fix step, giving you a chance to review before anything changes.
+
+## XML structure for complex instructions
+
+For multi-part instructions, XML tags help Claude organize and follow each part:
+
+```text
+<task>
+  Implement server-side turn timers for HOKM.
+</task>
+
+<constraints>
+  - Do not modify lib/generated/ files
+  - Do not change the WebSocket event schema without asking first
+  - All new server code goes in server/modules/match_timer.go
+</constraints>
+
+<deliverables>
+  1. The Go implementation of the timer module
+  2. Updated match handler to call the timer on state transitions
+  3. A brief comment in each changed file explaining the timer logic
+</deliverables>
+
+<verification>
+  After implementation, run: go test ./server/...
+  Show the test output.
+</verification>
+```
+
+XML structure is most valuable when you have multiple distinct requirements that could conflict or be forgotten. Simple tasks don't need it — it's overhead.
+
+## Prefilling Claude's response
+
+In prompt engineering contexts (API usage), you can prefill Claude's response to force a specific format. In Claude Code sessions, the equivalent is using formatting constraints:
+
+```text
+Analyze the match handler and respond ONLY with this JSON structure:
+{
+  "functions_analyzed": N,
+  "issues": [{"file": "...", "line": N, "severity": "high|medium|low", "description": "..."}],
+  "recommendation": "..."
+}
+Do not add any other text.
+```
+
+This is useful for headless mode output that's parsed by scripts.
+
+## Few-shot examples
+
+For tasks with a specific pattern or format, showing one example before asking often outperforms instructions alone:
+
+<PromptBlock>
+I need you to write RPC handler tests in this format:
+
+Example:
+```go
+func TestCreateMatch_ValidInput(t *testing.T) {
+    ctx := context.Background()
+    session := newTestSession(t)
+    
+    result, err := createMatch(ctx, session, `{"game_type":"hokm"}`)
+    
+    assert.NoError(t, err)
+    assert.NotEmpty(t, result.MatchId)
+}
+```
+
+Now write tests for the joinMatch handler, covering:
+- Valid join
+- Match full (4 players)
+- Match not found
+- Already joined
+</PromptBlock>
+
+The example establishes the naming convention, assertion style, and test helper usage without spelling it out in rules.
+
+## The "report before acting" pattern
+
+One of the highest-value prompt patterns for agents:
+
+<PromptBlock>
+Read the files in lib/services/ and identify all places where we
+make direct HTTP calls outside of nakama_service.dart.
+
+Report each location with file:line. Do not change any files.
+After I review the list, I'll ask you to fix them.
+</PromptBlock>
+
+Split analysis and action into two separate prompts. The first is read-only and cheap to redo. The second is constrained by your review of the first.
+
+## Constraining tool access in the prompt
+
+Beyond permission settings, you can instruct Claude directly:
+
+<PromptBlock>
+For this task, use only Read and Grep tools. Do not run any shell
+commands. Report findings as text. If you need to execute something
+to answer my question, ask me to run it instead.
+</PromptBlock>
+
+Claude respects this. It's not as reliable as actual permission settings (see [Permissions](/tier1/08-permissions)) but works well for ad-hoc constraints.
+
+<details>
+<summary>Common pitfall: prompt length as a proxy for quality</summary>
+
+Longer prompts don't automatically produce better results. A 2000-word prompt with 40 bullet points is harder for Claude to follow consistently than a 200-word prompt with 5 specific constraints.
+
+Write the minimum that specifies scope, output format, and key constraints. Every bullet point beyond that is friction — and the last ones get followed less reliably than the first ones.
+</details>

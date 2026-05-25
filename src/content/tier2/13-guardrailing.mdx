@@ -1,0 +1,138 @@
+---
+title: "Guardrailing patterns"
+tier: 2
+order: 13
+summary: "Layered approaches to keeping agents within intended scope — from hard permission rules to soft loop patterns."
+---
+
+Guardrailing is the practice of constraining what an agent can do, what it can see, and how it acts on your behalf. Good guardrails are invisible when things go right and catch problems before they become irreversible.
+
+There's no single guardrail that works for everything. Effective guardrailing is layered: permissions handle the hard boundaries, hooks enforce project-specific rules, prompting patterns reduce scope drift, and observability surfaces problems you didn't anticipate.
+
+## Layer 1: Permissions (hard limits)
+
+The most reliable guardrail is a structural one. If Claude doesn't have permission to call a tool, the tool can't be called regardless of how the prompt is written.
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(npm run *)", "Bash(flutter *)", "Read"],
+    "deny": ["Bash(rm -rf *)", "Bash(git push --force*)"],
+    "ask": ["Bash(git push *)", "Bash(git commit *)"]
+  }
+}
+```
+
+See [Permissions & allowed-tools](/tier1/08-permissions) for the full configuration. Key principle: **deny what's dangerous, ask for what's sensitive, allow everything else in the normal workflow.** Don't block legitimate tool use — that just creates friction without safety.
+
+## Layer 2: Hooks (automated enforcement)
+
+Hooks enforce rules that can't be expressed in simple permission patterns:
+
+- **Path-based rules**: block writes to `lib/generated/`, `pubspec.lock`, `.env`
+- **Pattern-based rules**: block any Bash command matching `drop|truncate|delete from`
+- **Format enforcement**: auto-run linters after every file write
+- **Audit**: log every tool call with timestamp to an append-only file
+
+See [Hooks](/tier1/07-hooks) for implementation. The key hook for guardrailing is `PreToolUse` with `permissionDecision: "deny"`.
+
+## Layer 3: Plan mode (human-in-the-loop)
+
+For high-risk or high-stakes tasks, put a human review step before any action:
+
+<PromptBlock>
+Before making any changes, write a plan to PLAN.md:
+- Files to be modified
+- What changes in each file
+- Any off-limits paths and how you're avoiding them
+- The testing approach
+
+Wait for my "proceed" before touching any files.
+</PromptBlock>
+
+The plan creates a natural review gate. Combined with specific file lists in your CLAUDE.md, it forces Claude to articulate where it's working before it starts.
+
+## Layer 4: Test-first loops
+
+One of the most effective structural guardrails: write tests before implementation. This scopes the implementation by giving it a specific target to satisfy.
+
+<PromptBlock>
+For the turn-timer feature:
+1. First, write the test cases in test/timer_test.go. Tests should
+   cover: timer starts on turn begin, timer fires at 30s, correct
+   card is played on timeout, timer resets on turn end.
+2. Show me the tests. Stop here.
+
+After I approve the tests, we'll implement the feature to make them pass.
+</PromptBlock>
+
+With this pattern, the implementation phase has a clear, verifiable done condition. Claude can't "helpfully" add untested edge cases because the test file defines the scope.
+
+## Layer 5: Read-only subagents
+
+For research and analysis tasks, spawn subagents with no write tools:
+
+<PromptBlock>
+Spawn a read-only subagent to map all the WebSocket event types
+currently defined in the codebase. Tools: Read, Glob, Grep only.
+Do not use Bash. Return the complete list with file locations.
+</PromptBlock>
+
+A read-only subagent cannot modify files regardless of how the prompt is interpreted. See [Subagents](/tier1/05-subagents).
+
+## Layer 6: Explicit red lines in CLAUDE.md
+
+Red lines are standing instructions that apply to every session:
+
+```markdown
+## Off-limits (never modify without explicit confirmation)
+- lib/generated/     — protobuf output, edit .proto sources instead
+- pubspec.lock       — managed by flutter pub
+- .github/workflows/ — CI pipeline, ask before touching
+- server/migrations/ — database migrations, extremely dangerous to modify
+```
+
+These work because Claude reads CLAUDE.md at the start of every session. They're less reliable than permissions or hooks but require no tooling — just good document hygiene.
+
+## Observability
+
+You can't guardrail what you can't see. Two practical patterns:
+
+**Audit log via hook:**
+```bash
+# PostToolUse hook — logs every tool call
+INPUT=$(cat)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  $(echo "$INPUT" | jq -r '.tool_name') \
+  $(echo "$INPUT" | jq -c '.tool_input | to_entries | first')" \
+  >> ~/.claude/audit.log
+```
+
+**Subagent activity:**
+```bash
+# SubagentStart hook
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) SubagentStart \
+  $(jq -r '.agent_id // "anon"' <<< "$(cat)")" \
+  >> ~/.claude/agents.log
+```
+
+Review these logs after sessions to catch unexpected tool calls. Patterns you find become new deny rules.
+
+## Eval harnesses for repeated tasks
+
+For tasks you run in CI (code review, test analysis), build an eval harness:
+
+1. Collect 10–20 examples of "this is the expected output for this input"
+2. Run Claude headlessly on each example
+3. Score the output automatically (exact match, regex, or heuristic)
+4. Run the harness when you change the prompt or upgrade the model
+
+This catches prompt regressions before they affect real work. It's overhead, but for tasks you depend on daily in CI, it's worth it.
+
+<details>
+<summary>Common pitfall: relying only on prompt instructions for guardrailing</summary>
+
+Prompts are instructions, not constraints. Claude will usually follow "don't modify lib/generated/" in a prompt — but not always. A complex session with many turns, a misinterpreted instruction, or a conflicting directive elsewhere in the context can cause the prompt-based guardrail to fail.
+
+The principle: **soft guardrails (prompts, CLAUDE.md) prevent accidents from inattention. Hard guardrails (permissions, hooks) prevent accidents from misinterpretation.** You need both. Don't substitute one for the other.
+</details>

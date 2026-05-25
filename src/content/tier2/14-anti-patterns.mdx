@@ -1,0 +1,138 @@
+---
+title: "Anti-patterns"
+tier: 2
+order: 14
+summary: "The specific mistakes that waste tokens, produce unreliable output, and let agents go off the rails — with the fix for each."
+---
+
+These are the patterns that look reasonable, work sometimes, and cause expensive failures the rest of the time. Each one has a reliable fix.
+
+---
+
+## 1. The God Prompt
+
+**The mistake:** One prompt for everything.
+
+```
+Implement the full reconnection system: handle disconnects in the Nakama 
+server, add retry logic to the Flutter client, write the tests, update 
+the docs, and commit when done.
+```
+
+**Why it fails:** Claude has to hold the entire task in one pass. It makes architectural decisions you don't see, moves on, and by the time you look at the diff, there are 15 files changed in ways you didn't anticipate. If something's wrong, you're undoing everything.
+
+**The fix:** One discrete action per prompt. Plan → approve → implement → verify → next step. The extra round-trips are cheap; the undo cost of a 15-file mistake is not.
+
+---
+
+## 2. Running without git
+
+**The mistake:** Starting a Claude Code session on an uncommitted codebase.
+
+**Why it fails:** When Claude modifies 8 files and gets it wrong, your recovery options are: manual undo, or `git checkout` — but only if you committed. Without a clean commit to revert to, you're manually sorting through what Claude changed vs. what was already there.
+
+**The fix:** Commit before every Claude Code session that touches production code. Not sometimes. Every time. The commit message can be "WIP: before AI session." This is your parachute.
+
+---
+
+## 3. Not using plan mode for complex tasks
+
+**The mistake:** Asking Claude to implement a multi-file feature without seeing the approach first.
+
+**Why it fails:** Claude will pick an implementation approach that seems reasonable from its training data but may not match your architecture. By the time you see the code, it's implementing the wrong pattern in the right files, or the right pattern in the wrong files.
+
+**The fix:** For any task that touches more than 2 files or requires a non-trivial decision, use [Plan mode](/tier1/04-plan-mode). Read the plan. Check the file list. Reject if the approach doesn't fit.
+
+---
+
+## 4. Accepting all permissions from session start
+
+**The mistake:** Hitting "accept all" at the first permission prompt of a new project session.
+
+**Why it fails:** You don't know yet what Claude will do. "Accept all" approves every tool call for the rest of the session, including shell commands, file writes, and anything else. The first session on a new project is the one time to observe before granting blanket approval.
+
+**The fix:** Read the first 3–5 tool calls manually. When you recognize the pattern (these are safe reads, these are expected edits), then grant broader permissions. Build trust incrementally.
+
+---
+
+## 5. A CLAUDE.md that describes everything
+
+**The mistake:** A 600-line CLAUDE.md with architecture diagrams, file-by-file descriptions, and every coding rule.
+
+**Why it fails:** Two problems. First, adherence degrades past 200 lines — the later instructions get less weight. Second, it goes stale. You write it in March; by June the architecture has changed but the document hasn't, and now Claude is operating with wrong assumptions with high confidence.
+
+**The fix:** CLAUDE.md for things Claude would get wrong without it. Not for things it can infer. If in doubt, check whether removing a section makes Claude behave differently — if not, remove it.
+
+---
+
+## 6. Not verifying with tests
+
+**The mistake:** Asking Claude to implement something, accepting the code, and moving on.
+
+**Why it fails:** Claude writes code that looks right. Often it is right. Sometimes it's plausible-but-wrong — passes a quick eyeball review, fails in a specific edge case you didn't check. In a card game, "plausible but wrong" turn logic means the game breaks on a specific hand combination that takes weeks to discover.
+
+**The fix:** Always close the loop: "run the tests," "check if this compiles," "does this break anything existing." At minimum: `flutter test` after every non-trivial implementation. Ask Claude to run it, not just say it ran it.
+
+---
+
+## 7. Long sessions without compacting
+
+**The mistake:** Running a 3-hour session accumulating context until the model gets confused.
+
+**Why it fails:** Context fills, earlier instructions fade, Claude starts re-reading files it already read, contradicts itself, or misremembers what it changed 30 turns ago. This is gradual and hard to notice in the moment.
+
+**The fix:** `/compact` between major subtasks. After research, before implementation. After debugging one issue, before starting the next. Think of context as a workspace — clear the desk before starting a new task, not when it's so cluttered you can't find anything.
+
+---
+
+## 8. Using Claude for large-scale refactors in one shot
+
+**The mistake:** "Migrate the entire codebase from callbacks to async/await in one session."
+
+**Why it fails:** Large-scale refactors have many interdependencies, edge cases, and compilation errors that cascade. Claude will handle the first 80% well and then start making increasingly creative decisions for the remaining 20% that require judgment about your specific patterns.
+
+**The fix:** Decompose. Pick one module. Verify it compiles and passes tests. Commit. Next module. The per-module overhead is trivial compared to untangling a half-migrated codebase.
+
+---
+
+## 9. `bypassPermissions` as your daily mode
+
+**The mistake:** Setting `bypassPermissions` as your default because permission prompts are annoying.
+
+**Why it fails:** Permission prompts are the last line of defense for unexpected tool calls. Without them, there's nothing between Claude's decision and your filesystem. A confused prompt, a misinterpreted instruction, or an edge case in Claude's reasoning can execute destructive commands with no checkpoint.
+
+**The fix:** Set `acceptEdits` or `auto` mode for daily work — these are less noisy while keeping prompts on shell commands. Reserve `bypassPermissions` for audited CI runs with `--allowedTools` scoped tightly.
+
+---
+
+## 10. Not treating Claude Code sessions as development work
+
+**The mistake:** Treating a Claude Code session as a conversation where you can wander off-topic, change requirements mid-stream, and add "while you're at it" tasks.
+
+**Why it fails:** Each "while you're at it" expands the scope in a session with accumulating context. Claude tracks all the open threads, tries to satisfy all of them, and the result is a diff with 12 files changed in 3 different directions that you now have to review as a unit.
+
+**The fix:** Task-oriented sessions. One focused goal. If a new idea comes up, note it and finish the current task first. Then start a fresh session for the new task. This sounds slow but it's faster than reviewing and partially reverting a sprawling multi-intent diff.
+
+---
+
+## 11. Skipping the `/init` step on new projects
+
+**The mistake:** Starting to use Claude Code heavily on a project without ever running `/init` to create a `CLAUDE.md`.
+
+**Why it fails:** Claude will infer what it can about your project from reading files, but it misses: your team's conventions, what's off-limits, which files are generated, how to run the project, and any non-obvious architectural choices. The first few sessions will spend tokens on corrections that `/init` + 20 minutes of editing would have prevented.
+
+**The fix:** Run `/init`, read the draft, edit it to add what matters and remove what doesn't. 20 minutes once saves dozens of correction turns across all future sessions.
+
+---
+
+## 12. Using headless mode for tasks that need judgment calls
+
+**The mistake:** Running `claude -p "fix the failing tests"` in CI, expecting reliable results.
+
+**Why it fails:** "Fix the failing tests" requires judgment: is this a real bug fix, a test that's wrong, a flaky test, or a fundamental design issue? A headless agent will make that judgment silently, change code, and push — and you won't find out until the next human code review.
+
+**The fix:** Headless mode is for analysis and reporting, not for making judgment calls unattended. `claude -p "identify the failing tests and their likely cause"` is safe. `claude -p "fix the failing tests"` is not — unless you've verified it on dozens of examples and trust the output format.
+
+<Callout type="pitfall">
+Most of these anti-patterns share a root cause: treating Claude Code as infallible rather than as a capable but fallible collaborator. Claude Code is excellent at tasks with clear scope, verifiable output, and a human in the review loop. It degrades when tasks are vague, sessions run too long, and its output goes unverified.
+</Callout>
