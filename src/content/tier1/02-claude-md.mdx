@@ -1,0 +1,106 @@
+---
+title: "CLAUDE.md"
+tier: 1
+order: 2
+summary: "Persistent context injected into every session — the standing brief Claude reads before touching your code."
+---
+
+**CLAUDE.md** is a plain text file that Claude Code reads at the start of every session. It's not memory — nothing Claude does updates it automatically. It's a standing brief: what this project is, how it's structured, what conventions to follow, what not to touch.
+
+## When to use it
+
+The moment you start using Claude Code on a project with more than a few files. Without it, Claude infers everything from the code itself — which works, but wastes context and leads to repeated corrections. With a good CLAUDE.md, those corrections move from conversation to document.
+
+## When NOT to use it
+
+- Don't put secrets or credentials in it (it's usually committed to the repo)
+- Don't describe things Claude can read directly — `pubspec.yaml` already lists your dependencies
+- Don't make it a tour of every file; Claude navigates codebases itself
+
+## Load hierarchy
+
+Claude loads CLAUDE.md files in this order (all are concatenated, not merged):
+
+1. **Managed policy** — set by IT/org on enterprise accounts; cannot be overridden
+2. **`~/.claude/CLAUDE.md`** — user-level context, applies to all your projects
+3. **`./CLAUDE.md`** or **`./.claude/CLAUDE.md`** — project root
+4. **`./CLAUDE.local.md`** — project-local, intended to be gitignored
+5. **Subdirectory CLAUDE.md files** — loaded on demand when Claude reads files in that directory
+
+Files at the same level are appended in the order above. If your project root has both `CLAUDE.md` and `.claude/CLAUDE.md`, both load. Conflicts are possible — write them consistently.
+
+HTML comments (`<!-- -->`) are stripped before injection, so you can annotate your CLAUDE.md without those notes reaching Claude.
+
+## The `@import` syntax
+
+You can split context across files and reference them:
+
+```text
+@docs/architecture.md
+@.claude/code-style.md
+```
+
+Imports expand at launch, up to 5 hops deep. Useful for separating stable architecture docs from frequently-updated conventions.
+
+## Size and quality
+
+Target under 200 lines. According to [Anthropic's documentation](https://docs.anthropic.com/en/docs/claude-code/memory), adherence degrades significantly past this threshold. More importantly: a long CLAUDE.md signals that you're not being selective. Ruthlessly cut anything that isn't load-bearing.
+
+Keep it in three layers:
+- **What this is** — one paragraph on the project, stack, major versions
+- **How to work here** — commands, conventions, what's off-limits
+- **Non-obvious facts** — architecture decisions, gotchas, ownership
+
+## Best practices
+
+1. **Run `/init` first.** It generates a draft CLAUDE.md from your project. Edit it — don't use it as-is — but it gives you the structure.
+2. **The `CLAUDE.local.md` pattern.** Put personal / machine-local context here (your dev server port, local paths, debug flags). Add it to `.gitignore`. Your teammates shouldn't get your preferences.
+3. **Version it.** CLAUDE.md is code. Review it like code. If a convention changes, update the file.
+4. **Test it with `/memory`.** This command shows you exactly what Claude has loaded. Use it to verify your file is being picked up and isn't over the effective limit.
+
+## Example
+
+`CLAUDE.md` for the HOKM multiplayer platform:
+
+```markdown
+# HOKM Platform
+
+## Stack
+- Flutter 3.24 / Dart 3.5
+- Nakama 2.x — server at localhost:7350 in dev, env var NAKAMA_HOST in prod
+- State: Riverpod 2.x. No BLoC, no GetX. New state goes in a provider.
+- Real-time: Nakama WebSocket (not HTTP polling)
+
+## Commands
+- Run: `flutter run -d chrome`
+- Test: `flutter test --coverage`
+- Server logs: `docker compose logs -f nakama`
+- Format: `dart format . && flutter analyze`
+
+## Architecture
+- All Nakama calls go through `lib/services/nakama_service.dart`
+- Game state: `lib/providers/game_provider.dart`
+- Never put game logic in widgets
+- `lib/generated/` is protoc output — do not edit
+
+## Off-limits
+- Don't modify `pubspec.yaml` without asking
+- Don't add packages without asking
+- Tests live in `test/` — don't write them inline in lib/
+```
+
+And `.claude/CLAUDE.local.md` (gitignored):
+
+```markdown
+## Local setup
+- Flutter on PATH via FVM: `fvm use 3.24.3`
+- Nakama running in Docker on non-standard port 7351 (conflict with another service)
+```
+
+<details>
+<summary>Common pitfall: making CLAUDE.md a complete architecture document</summary>
+
+The impulse is to document everything so Claude "understands the project." The problem: a 500-line CLAUDE.md is just as bad as none — Claude's adherence to instructions degrades past 200 lines, and you now have a stale document to maintain.
+
+The right question isn't "what should Claude know?" It's "what will Claude get wrong without this?" List those things. Leave everything else out.
+</details>

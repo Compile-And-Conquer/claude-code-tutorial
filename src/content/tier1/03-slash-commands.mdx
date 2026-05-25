@@ -1,0 +1,102 @@
+---
+title: "Slash commands"
+tier: 1
+order: 3
+summary: "Built-in commands and bundled skills — what each does, when it earns a keystroke."
+---
+
+**Slash commands** are typed with `/` inside an interactive Claude Code session. They fall into two distinct categories: built-in commands (fixed logic, always available) and bundled skills (prompt-driven workflows that Claude executes using its tools). The distinction matters because skills can be customized or replaced.
+
+Type `/` alone to see an autocomplete menu of everything available.
+
+## Built-in commands
+
+These are hardcoded behaviors — not prompts, not editable.
+
+| Command | What it does |
+|---|---|
+| `/help` | List all available commands and skills |
+| `/clear` | Wipe conversation history; start fresh |
+| `/compact` | Compress history into a summary, then continue |
+| `/init` | Generate or update `CLAUDE.md` for the current project |
+| `/memory` | View and edit CLAUDE.md and auto-memory files; toggle auto-memory |
+| `/model` | Switch model for this session |
+| `/login` | Re-authenticate or switch accounts |
+| `/doctor` | Diagnose setup issues — missing tools, config problems, version mismatches |
+
+**`/clear` vs `/compact`:** `/clear` throws everything away; `/compact` summarizes the history and keeps working from the summary. Use `/compact` when you want to continue the same task but free up context. Use `/clear` when the conversation has gone sideways and you want a true reset.
+
+## Bundled skills
+
+Skills are Markdown-based prompts that ship with Claude Code. They run like custom commands but live in the Claude Code installation. Because they're just prompts, they behave like any other Claude instruction — they can be wrong or outdated, and you can override them by creating a local `.claude/commands/` file with the same name.
+
+Notable ones worth knowing:
+
+| Command | What it does |
+|---|---|
+| `/review` | Code review of recent changes |
+| `/security-review` | Security-focused analysis of the current branch |
+| `/simplify` | Refactor flagged code for quality and reuse |
+| `/debug` | Structured debugging workflow |
+| `/loop [interval] [cmd]` | Run a command on a repeating schedule |
+| `/schedule` | Create a remote scheduled agent (runs on a cron) |
+| `/claude-api` | Build Claude API apps with prompt caching and best practices |
+| `/fewer-permission-prompts` | Scans recent tool calls and adds an allowlist to reduce prompts |
+| `/update-config` | Configure `settings.json`, hooks, and permissions interactively |
+| `/init` | (also a skill with an interactive multi-phase mode via `CLAUDE_CODE_NEW_INIT=1`) |
+
+## Custom commands
+
+Create a `.md` file in `.claude/commands/` (project-scoped) or `~/.claude/commands/` (user-scoped). The filename becomes the command name.
+
+**`.claude/commands/sync-schema.md`:**
+
+```markdown
+Review the Nakama RPC definitions in `server/rpc/` and compare them
+against the Dart client stubs in `lib/generated/nakama/`.
+
+List any schema mismatches found. Do not make changes yet — report
+first. After my confirmation, update only the Dart stubs.
+```
+
+Run as `/sync-schema`. No arguments needed.
+
+**Commands that take arguments** — use `$ARGUMENTS`:
+
+**`.claude/commands/coverage.md`:**
+
+```markdown
+Run `flutter test $ARGUMENTS --coverage` and analyze the output.
+Show coverage for files below 80%. Highlight untested public methods
+in game-logic files. Do not touch test files.
+```
+
+Run as `/coverage lib/game_logic` or `/coverage lib/services/nakama_service.dart`.
+
+## When to use it
+
+- `/init` — before the first real session on any new project
+- `/compact` — when you're deep in a task and the context counter is climbing
+- `/doctor` — when Claude Code behaves unexpectedly (wrong model, tool failures)
+- `/memory` — after editing CLAUDE.md, to verify what actually loaded
+- `/review` — as a quick gut-check before committing
+- `/fewer-permission-prompts` — once a project's tool usage is stable and you want less noise
+
+## When NOT to use it
+
+Don't use `/compact` as a reflex when a session slows down — check whether the context is actually dirty first. Compaction introduces summarization noise; if the session is still coherent, the cost isn't worth it.
+
+Don't create custom commands for tasks you only do once. A custom command earns its place when it encodes project-specific context you'd otherwise retype every session.
+
+<details>
+<summary>Common pitfall: writing custom commands too generically</summary>
+
+A command like `/review-my-code` that just says "review the code for quality" adds nothing over typing the same thing directly. The value of a custom command is the project-specific context baked into it:
+
+- Which files are off-limits
+- What "quality" means for *this* codebase
+- What to check that a generic review would miss
+- What output format the team expects
+
+If you can't fill that context in, the command isn't ready yet.
+</details>

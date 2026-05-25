@@ -1,0 +1,13 @@
+---
+interface Props {
+  label?: string;
+}
+const { label = 'Prompt' } = Astro.props;
+---
+
+<div class="my-4 rounded-lg border border-rim bg-code overflow-hidden">
+  <div class="flex items-center justify-between px-3 py-1.5 border-b border-rim">
+    <span class="text-[10px] font-mono font-medium text-dim tracking-widest uppercase">{label}</span>
+  </div>
+  <pre class="p-4 text-[13px] font-mono text-prose leading-relaxed whitespace-pre-wrap overflow-x-auto m-0 border-0 rounded-none"><slot /></pre>
+</div>

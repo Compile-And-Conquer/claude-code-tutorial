@@ -1,0 +1,23 @@
+---
+interface Props {
+  type: 'tip' | 'warning' | 'pitfall';
+}
+const { type } = Astro.props;
+
+const variants = {
+  tip:     { label: 'Tip',     cls: 'border-tip/25 bg-tip/5',     text: 'text-tip'    },
+  warning: { label: 'Warning', cls: 'border-warn/25 bg-warn/5',   text: 'text-warn'   },
+  pitfall: { label: 'Pitfall', cls: 'border-danger/25 bg-danger/5', text: 'text-danger' },
+};
+
+const v = variants[type];
+---
+
+<div class={`my-4 rounded-lg border px-4 py-3.5 ${v.cls}`}>
+  <div class={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${v.text}`}>
+    {v.label}
+  </div>
+  <div class="text-[13px] text-prose leading-relaxed [&_code]:text-[0.8em] [&_code]:bg-black/30 [&_code]:px-1 [&_code]:rounded [&_a]:text-amber [&_a]:underline">
+    <slot />
+  </div>
+</div>

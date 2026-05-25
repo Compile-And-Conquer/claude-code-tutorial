@@ -1,0 +1,94 @@
+---
+title: "Setup & first steps"
+tier: 1
+order: 1
+summary: "Install Claude Code, start your first session, and understand the key runtime modes."
+---
+
+**Claude Code** is a CLI agent that reads and writes code in your terminal using the full Claude model — not a stripped-down version. It has direct filesystem access, can run shell commands, call tools, spin up subagents, and connect to external services via MCP.
+
+## Installation
+
+**macOS / Linux / WSL:**
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+**Homebrew (manual updates):**
+```bash
+brew install --cask claude-code
+brew upgrade claude-code   # when you want to update
+```
+
+The curl installer auto-updates. Homebrew does not — you have to run `upgrade` yourself. Native installs (curl) are the lower-friction choice for personal machines.
+
+**VS Code / JetBrains:** Both have extensions that embed Claude Code in the IDE sidebar. Functionality is identical to the CLI; it's just a different surface. The CLI is where you'll spend most time during initial exploration.
+
+## First session
+
+```bash
+cd ~/projects/my-app   # always start from project root
+claude                 # launches interactive session
+```
+
+On first launch, it will prompt you to log in via browser. After that, credentials are stored — no re-auth needed.
+
+You'll see a `>` prompt. Type a task in plain English. Claude reads files as it needs them; you don't have to point it at anything.
+
+## Runtime modes
+
+| Mode | Command | Use case |
+|---|---|---|
+| Interactive (REPL) | `claude` | Ongoing session with back-and-forth |
+| Single task | `claude "do X"` | One-shot, then exits |
+| Pipe-friendly query | `claude -p "explain this" < file.ts` | Scripting / CI |
+| Continue last session | `claude -c` | Pick up where you left off |
+| Resume a past session | `claude --resume` | Brings up a session picker |
+
+## When to use it
+
+Any time you want AI to touch your actual codebase — not a paste of it. Claude Code reads files directly, tracks changes, and can run your tests. This is meaningfully different from pasting code into a chat window.
+
+Good fits: implementing a feature, refactoring, writing tests, reviewing a diff, debugging a build failure with access to logs.
+
+## When NOT to use it
+
+- On a codebase you haven't set up `CLAUDE.md` for yet — run `/init` first to give it context
+- In a directory containing secrets you're not comfortable with Claude reading (`.env` files, credential stores)
+- For questions that don't need file access — a chat window is faster and cheaper
+
+## Best practices
+
+1. **Always `cd` to the project root first.** Claude Code anchors its working context to the directory you launched it from. Starting in a subdirectory means it won't see the full project.
+2. **Run `/init` before your first real session** on a new project. It generates a `CLAUDE.md` draft you can edit.
+3. **Check what permissions you're granting.** The first time it asks to run a command or write a file, read the request before approving. "Accept all for session" is powerful — use it once you've seen what the agent actually does.
+4. **Use `--verbose` when onboarding.** Flags available via `claude --help`. Verbose mode shows every tool call, which builds an accurate mental model fast.
+
+## Example
+
+Starting work on the HOKM card game reconnection logic:
+
+```bash
+cd ~/projects/hokm-flutter
+claude
+```
+
+<PromptBlock>
+The Nakama WebSocket connection drops silently when the phone loses network.
+Add a reconnection handler to lib/services/nakama_service.dart:
+- Retry 3 times with exponential backoff (1s, 2s, 4s)
+- Emit a reconnecting state the UI can observe
+- Restore the active game session after successful reconnect
+
+Don't change the socket initialization path. Show me the plan first.
+</PromptBlock>
+
+The "show me the plan first" instruction is useful during early sessions — it reveals Claude's interpretation of the task before it writes anything.
+
+<details>
+<summary>Common pitfall: granting "accept all" permissions without reading the first few tool calls</summary>
+
+When Claude Code asks to run a command you don't recognize, or writes to a file outside the expected path, that's signal worth acting on. The first session on a new project is when you build trust. Read each tool call until you're confident it's working within the right scope. After that, "accept all" is fine for the rest of the session.
+
+Accepting everything from the first prompt means you learn nothing about what the agent is actually doing — and you'll miss it if it does something unexpected.
+</details>

@@ -1,0 +1,28 @@
+---
+import { getCollection } from 'astro:content';
+import TopicLayout from '../../layouts/TopicLayout.astro';
+import Callout from '../../components/Callout.astro';
+import PromptBlock from '../../components/PromptBlock.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('tier1');
+  return entries.map(entry => ({
+    params: { slug: entry.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await entry.render();
+---
+
+<TopicLayout
+  title={entry.data.title}
+  tier={entry.data.tier}
+  order={entry.data.order}
+  summary={entry.data.summary}
+  slug={entry.slug}
+  collection="tier1"
+>
+  <Content components={{ Callout, PromptBlock }} />
+</TopicLayout>
