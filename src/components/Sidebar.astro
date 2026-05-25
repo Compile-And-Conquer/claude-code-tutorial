@@ -1,0 +1,44 @@
+---
+import { nav, tierMeta } from '../data/nav';
+
+interface Props {
+  currentPath: string;
+}
+const { currentPath } = Astro.props;
+
+function isActive(href: string): boolean {
+  return currentPath === href || currentPath === href + '/';
+}
+---
+
+<nav class="p-3 pb-8" aria-label="Topics">
+  {nav.map(group => (
+    <div class="mb-7">
+      <div class="flex items-center gap-2 px-2 mb-1.5">
+        <span class="text-[10px] font-semibold tracking-[0.12em] uppercase text-dim">
+          {group.label}
+        </span>
+        <span class={`text-[9px] font-mono px-1.5 py-0.5 rounded ${tierMeta[group.tier].badge}`}>
+          {tierMeta[group.tier].label}
+        </span>
+      </div>
+      <ul role="list">
+        {group.items.map(item => (
+          <li>
+            <a
+              href={item.href}
+              class={`flex items-center gap-1.5 px-2 py-1.5 text-[13px] rounded transition-colors leading-snug ${
+                isActive(item.href)
+                  ? 'bg-amber/10 text-amber font-medium'
+                  : 'text-dim hover:text-prose hover:bg-surface-hi'
+              }`}
+              aria-current={isActive(item.href) ? 'page' : undefined}
+            >
+              {item.title}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ))}
+</nav>
