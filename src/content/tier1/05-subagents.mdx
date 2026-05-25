@@ -1,0 +1,113 @@
+---
+title: "Subagents"
+tier: 1
+order: 5
+summary: "Isolated Claude instances for parallel work, context separation, and tool-access restriction."
+---
+
+**Subagents** are isolated Claude instances that your main Claude Code session can spawn to handle specific tasks. Each subagent gets its own context window, its own system prompt, and its own restricted set of tools. Results return as summaries to the main session.
+
+Claude Code supports three related but distinct concepts:
+
+| Type | Description |
+|---|---|
+| **Subagent** | Isolated context window within a session. Handles a subtask, returns summary. |
+| **Background agent** | A full parallel Claude session running independently; monitored via dashboard. |
+| **Agent team** | Multiple Claude sessions that communicate with each other during execution. |
+
+This article focuses on subagents (the most common pattern for side projects).
+
+## When to use it
+
+**Context isolation** — The main session's context is valuable. A long research task (read 15 files, analyze patterns, summarize) pollutes the main context with intermediate findings. Move it to a subagent: only the summary comes back.
+
+**Parallel exploration** — Spawn multiple subagents to investigate different parts of the codebase simultaneously. One looks at the backend, one looks at the client protocol, one checks the test coverage. All run in parallel; results merge back.
+
+**Restricted tool access** — A research subagent can be given read-only tools (no `Bash`, no `Write`). Even if it misinterprets an instruction, it can't modify files. Isolation is the guardrail.
+
+**Specialization** — Give a subagent a specific system prompt that makes it a domain expert for the task. "You are reviewing code strictly for security vulnerabilities. Do not suggest style improvements."
+
+## When NOT to use it
+
+- Small targeted changes — subagent overhead (context setup, summarization) isn't worth it for a 5-line edit
+- When you need the subagent's intermediate state — it only returns a summary, not its full working context
+- As a workaround for a confused main session — use `/clear` or `/compact` instead
+
+## How Claude uses subagents automatically
+
+Claude Code will sometimes spawn subagents on its own for complex tasks. When you ask it to "implement X and write tests for it," it may create a subagent to handle the test writing while the main session handles the implementation. This is transparent — you'll see it in the tool call output.
+
+You can also direct it explicitly:
+
+<PromptBlock>
+Spawn two subagents in parallel:
+
+Subagent 1: Read the Nakama RPC definitions in server/rpc/ and list
+all match-related functions, their signatures, and what state they
+read/write. Do not modify anything.
+
+Subagent 2: Read the Flutter game_provider.dart and map the state
+transitions for a player's turn cycle. Identify where timeout events
+would need to be handled. Do not modify anything.
+
+Report findings from both, then we'll plan the implementation.
+</PromptBlock>
+
+## Restricting subagent tools
+
+In `settings.json`, you can configure which tools subagents are allowed to use. This is the main guardrail pattern:
+
+```json
+{
+  "agent": {
+    "allowedTools": ["Read", "Glob", "Grep", "LS"]
+  }
+}
+```
+
+A research subagent with only `Read`, `Glob`, `Grep`, and `LS` can explore the codebase extensively but can't execute anything or write files.
+
+For more granular control, use hooks with the `SubagentStart` event to apply policies based on the agent's task type. See [Hooks](/tier1/07-hooks) for implementation details.
+
+## Example
+
+The HOKM platform needs a new feature: bot substitution when a player disconnects. This requires changes to the Nakama game logic, the WebSocket protocol, and the Flutter client. Rather than letting one session hold all the context:
+
+<PromptBlock>
+I'm adding bot substitution for disconnected players in the HOKM game.
+Before implementing, I need a full picture of the current state.
+
+Spawn three read-only subagents in parallel:
+
+1. Map the Nakama match handler in server/ — list all match state
+   fields, the RPC handlers, and where player presence is tracked.
+
+2. Map the Flutter network layer — how the WebSocket connection is
+   managed, what events are currently handled, where reconnection
+   logic lives (if any).
+
+3. Identify the game state machine in lib/providers/ — list all
+   states, the valid transitions, and any existing "player missing"
+   handling.
+
+Do not modify any files. Return findings only.
+</PromptBlock>
+
+Three subagents, one round-trip, full context for implementation planning.
+
+## Monitoring subagent behavior
+
+Hooks fire on `SubagentStart` and `SubagentStop` events, giving you visibility into what subagents run and how long they take. Useful for audit logs and cost tracking:
+
+```bash
+# .claude/hooks/log-subagents.sh
+EVENT=$(jq -r '.hook_event_name' <<< "$(cat)")
+AGENT=$(jq -r '.agent_id // "unknown"' <<< "$(cat)")
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $EVENT $AGENT" >> ~/.claude/agents.log
+```
+
+<details>
+<summary>Common pitfall: using subagents as a substitute for a clear main task</summary>
+
+If your main task is vague, spawning subagents just distributes the vagueness. A subagent told "look around and find anything interesting" will return noise. Subagents work when they have specific, bounded tasks: "find all callers of this function," "check test coverage for this module," "read and summarize this API spec." Scope them tightly.
+</details>

@@ -1,0 +1,222 @@
+---
+title: "Hooks"
+tier: 1
+order: 7
+summary: "Shell commands that fire on Claude Code events — the primary mechanism for automated guardrails, auto-formatting, and audit trails."
+---
+
+**Hooks** are shell commands or scripts that Claude Code runs in response to specific events: before a tool call, after a file write, when a session starts, when a subagent is spawned. The `PreToolUse` hook can block or modify tool calls before they execute — making it the main mechanism for automated guardrailing.
+
+## When to use it
+
+- **Block dangerous commands before they run** — `rm -rf`, `git push --force`, writes to generated files
+- **Auto-format on write** — run `dart format` or `prettier` after every file edit, silently
+- **Audit trail** — log every tool call with timestamp to a file for review
+- **Enforce project conventions** — block writes to `lib/generated/`, prevent edits outside the project root
+- **Custom permission rules** — allow some Bash commands automatically, require human approval for others
+
+## When NOT to use it
+
+- Hooks that do expensive work on every tool call (they run synchronously and block execution)
+- Replacing CLAUDE.md conventions with hooks — hooks should enforce hard rules, not preferences
+- As a substitute for permissions and allowed-tools (see [Permissions](/tier1/08-permissions))
+
+## Configuration
+
+Hooks are configured in `.claude/settings.json` (project-scoped) or `~/.claude/settings.json` (user-scoped):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/check-bash.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format-on-write.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The `matcher` field matches against the tool name. Use `|` for multiple tools, regex for patterns.
+
+## Hook input and output
+
+Every hook receives a JSON payload on stdin:
+
+```json
+{
+  "session_id": "abc123",
+  "hook_event_name": "PreToolUse",
+  "cwd": "/path/to/project",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "rm -rf dist/"
+  }
+}
+```
+
+For `PreToolUse`, the hook can return a decision to block or allow:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Destructive command blocked"
+  }
+}
+```
+
+`permissionDecision` values: `allow`, `deny`, `ask` (prompt user), `defer` (use default behavior).
+
+**Exit codes:**
+- `0` — success; JSON output is parsed
+- `2` — blocking error; stderr is shown to the user and Claude stops
+- anything else — non-blocking; logged to debug only
+
+## Practical recipes
+
+**1. Block destructive Bash commands:**
+
+```bash
+#!/bin/bash
+# .claude/hooks/check-bash.sh
+INPUT=$(cat)
+CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+if echo "$CMD" | grep -qE 'rm -rf|git push --force|DROP TABLE|truncate'; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "Blocked: destructive command pattern matched"
+    }
+  }'
+  exit 0
+fi
+# No decision — let default permission flow handle it
+```
+
+**2. Block writes to generated files:**
+
+```bash
+#!/bin/bash
+# .claude/hooks/block-generated.sh
+INPUT=$(cat)
+FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+if [[ "$FILE" == *"lib/generated/"* || "$FILE" == *".pb.dart" ]]; then
+  jq -n '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "Generated files are off-limits. Edit the .proto source instead."
+    }
+  }'
+  exit 0
+fi
+```
+
+**3. Auto-format Dart files after write:**
+
+```bash
+#!/bin/bash
+# .claude/hooks/format-on-write.sh
+INPUT=$(cat)
+FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+case "$FILE" in
+  *.dart) dart format "$FILE" 2>/dev/null ;;
+  *.ts|*.tsx) npx --yes prettier --write "$FILE" 2>/dev/null ;;
+esac
+# No output needed — PostToolUse doesn't block
+```
+
+**4. Audit log:**
+
+```bash
+#!/bin/bash
+# Runs on every PostToolUse
+INPUT=$(cat)
+TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $TOOL $(echo "$INPUT" | jq -c '.tool_input | to_entries | first')" \
+  >> ~/.claude/audit.log
+```
+
+## Example — HOKM platform hook setup
+
+Two hard rules for the HOKM project:
+1. Don't modify `lib/generated/` (protobuf output — edit `.proto` files instead)
+2. Auto-format Dart files after every write
+
+`.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-generated.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format-on-write.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The block-generated hook fires silently on every write attempt and blocks without user interruption when the path matches. The format hook fires after every successful write and runs `dart format` quietly.
+
+## Key events reference
+
+| Event | When it fires | Can block? |
+|---|---|---|
+| `PreToolUse` | Before any tool call | Yes |
+| `PostToolUse` | After successful tool call | No |
+| `UserPromptSubmit` | When you submit a message | Yes |
+| `SessionStart` | When a session begins | No |
+| `SubagentStart` | When a subagent is spawned | No |
+| `SubagentStop` | When a subagent finishes | No |
+| `PreCompact` | Before conversation compaction | No |
+| `FileChanged` | When a file is modified | No |
+
+<details>
+<summary>Common pitfall: hooks that are too broad and slow down every tool call</summary>
+
+A `PreToolUse` hook with no `matcher` runs before every single tool call — file reads, glob searches, everything. If your hook does any non-trivial work (spawning a process, making a network call), it will noticeably slow down the session.
+
+Match specifically: `"matcher": "Bash"` for command checks, `"matcher": "Write|Edit|MultiEdit"` for file modification checks. And keep the scripts fast: a simple `grep` on the input JSON is fine; running a linter is not.
+</details>

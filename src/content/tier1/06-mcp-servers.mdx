@@ -1,0 +1,152 @@
+---
+title: "MCP servers"
+tier: 1
+order: 6
+summary: "Connect Claude Code to external tools and data sources — when the connection earns its complexity."
+---
+
+**MCP (Model Context Protocol)** is an open standard for connecting Claude Code to external tools and data sources. An MCP server exposes a set of callable tools — a GitHub integration, a database, a Jira board, a Slack workspace, an internal API. When connected, Claude can query and act on those systems directly.
+
+## When to use it
+
+MCP earns its place when you find yourself **manually bridging two systems** that Claude needs to work together:
+
+- Copy-pasting error IDs from your issue tracker to ask Claude to fix them
+- Manually fetching API specs and pasting them in before asking about integration work
+- Reading database query results to Claude so it can suggest schema changes
+- Downloading logs to a file before asking Claude to analyze them
+
+If you're doing that copy-paste more than a few times, an MCP connection is worth the setup.
+
+## When NOT to use it
+
+- Systems Claude doesn't actually need to query during coding work
+- Replacing a simple `cat file | claude` with an MCP server that does the same thing
+- Connecting to production systems with broad write access — scope it to read-only or dev environments
+
+Each MCP server adds tools to Claude's context. Unused tools consume tokens and increase the chance Claude reaches for the wrong one. Add only what you'll actually use.
+
+## Configuration
+
+**Via CLI** (easiest for getting started):
+
+```bash
+# HTTP server
+claude mcp add --transport http nakama-admin http://localhost:7350/v2/mcp
+
+# Stdio server (local process)
+claude mcp add --transport stdio my-tool -- node ./my-mcp-server.js
+
+# Scope: project (shared via git) or user (all projects)
+claude mcp add --scope project --transport http my-api https://api.example.com/mcp
+```
+
+**Via `.mcp.json`** (project-scoped, committed to repo):
+
+```json
+{
+  "mcpServers": {
+    "nakama-admin": {
+      "type": "http",
+      "url": "http://localhost:7350/v2/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NAKAMA_API_KEY}"
+      },
+      "timeout": 30000
+    }
+  }
+}
+```
+
+**Via `~/.claude.json`** (user-scoped, all projects):
+
+```json
+{
+  "mcpServers": {
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.app/sse",
+      "oauth": {
+        "clientId": "your-oauth-client-id"
+      }
+    }
+  }
+}
+```
+
+## Scope hierarchy
+
+MCP servers can be configured at three scopes, which determines who sees them and whether they require trust approval:
+
+| Scope | Config file | Shared? | Notes |
+|---|---|---|---|
+| User | `~/.claude.json` | No | Available across all your projects |
+| Project | `.mcp.json` in project root | Yes | Teammates prompted to trust on first use |
+| Local | `~/.claude.json` (project-specific) | No | Use for dev-env-specific servers |
+
+<Callout type="warning">
+Project-scoped servers in `.mcp.json` require explicit trust from each team member on first use. Reset trust decisions with `claude mcp reset-project-choices`.
+</Callout>
+
+## Security
+
+**Use environment variable substitution for credentials** — never hardcode tokens:
+
+```json
+"headers": {
+  "Authorization": "Bearer ${NAKAMA_API_KEY}"
+}
+```
+
+Supports `${VAR}` and `${VAR:-default}`. If the variable is missing and no default is set, the server won't load — which is the correct behavior.
+
+**Only connect servers you control or trust.** An MCP server can expose arbitrary tools that execute arbitrary actions. A malicious server could instruct Claude to exfiltrate code or make destructive API calls. The trust model: if you wouldn't `npm install` a random package from that author, don't connect their MCP server.
+
+**Scope write access tightly.** If the MCP server exposes a GitHub integration, decide whether Claude needs write access or just read. A read-only connection for research tasks is significantly safer.
+
+## Example
+
+The HOKM platform uses Nakama as the backend. During development, frequently needed:
+
+- Check the current match state to debug stuck games
+- Query active socket connections
+- Inspect leaderboard entries
+
+Without MCP: manually call the Nakama HTTP API, copy the JSON, paste it in.
+With MCP: Claude queries Nakama directly when needed, within the context of a debugging session.
+
+`.mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "nakama": {
+      "type": "http",
+      "url": "${NAKAMA_HOST:-http://localhost:7350}/v2/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NAKAMA_SERVER_KEY}"
+      },
+      "timeout": 10000
+    }
+  }
+}
+```
+
+Then in a debugging session:
+
+<PromptBlock>
+The match abc123 appears stuck — the state shows "waiting_for_player"
+but all players are connected. Query the Nakama match state for that
+match ID and find the discrepancy between the reported state and the
+player presence list.
+</PromptBlock>
+
+Claude calls the MCP tool directly rather than asking you to fetch the data.
+
+<details>
+<summary>Common pitfall: connecting to production with write access</summary>
+
+Development MCP servers are scoped to localhost or a dev Nakama instance. Production servers have real player data and real game state. A bug in how Claude interprets a tool call could delete match records, kick active players, or corrupt leaderboards.
+
+Rule of thumb: production MCP = read-only, or don't connect at all. Use the `${NAKAMA_HOST}` environment variable pattern so your `.mcp.json` points to localhost in dev and simply isn't configured in production.
+</details>

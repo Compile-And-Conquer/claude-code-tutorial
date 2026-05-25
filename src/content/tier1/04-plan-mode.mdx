@@ -1,0 +1,96 @@
+---
+title: "Plan mode"
+tier: 1
+order: 4
+summary: "Makes Claude document its intended approach before touching anything — the main mechanism for catching mistakes before they happen."
+---
+
+**Plan mode** causes Claude to write a structured plan and pause for your approval before executing any file writes or shell commands. You read the plan, decide if the approach is correct, and then let it proceed — or push back and revise.
+
+## When to use it
+
+Multi-file changes where the wrong approach is expensive to undo:
+
+- Refactors that touch public API surfaces
+- Database migrations or schema changes
+- Anything that modifies generated or build-output files
+- Tasks in an unfamiliar codebase where you want to see Claude's understanding before it acts
+- When you've been burned before by Claude touching the wrong files
+
+The overhead is real: planning adds a round-trip. For a 5-line fix, don't use it. For "refactor the auth system," use it.
+
+## When NOT to use it
+
+- Small, well-scoped changes (add this method, fix this bug, rename this variable)
+- Quick iteration where you're already reviewing every diff anyway
+- Tasks you've run successfully before in the same codebase
+
+## How it works
+
+Claude enters planning mode and produces a plan — typically a list of files to modify, the proposed approach, and any concerns. It then waits. You review and either approve (Claude proceeds) or reject with feedback (Claude revises).
+
+**To put Claude into planning mode**, use the `/update-config` skill or set it explicitly in your prompt:
+
+<PromptBlock>
+Before making any changes, write your full plan to PLAN.md.
+Include: which files you'll touch, what changes in each, and any
+risks or edge cases. Wait for my explicit approval before proceeding.
+Do not write any code until I say "proceed."
+</PromptBlock>
+
+Alternatively, Claude Code has a built-in plan mode you can configure. The relevant settings (in `settings.json`):
+
+```json
+{
+  "showClearContextOnPlanAccept": true,
+  "useAutoModeDuringPlan": false
+}
+```
+
+`showClearContextOnPlanAccept` — when you approve a plan, offers to clear context so the execution phase starts fresh.
+
+`useAutoModeDuringPlan` — whether auto-mode (no permission prompts) applies during the planning phase. Defaults to `false` for safety.
+
+## How to read a plan critically
+
+This is where most of the value is. Don't just check that it sounds reasonable — check specifically:
+
+1. **File scope** — does it touch only the files you expect? Any path that surprises you is a red flag.
+2. **Architecture fit** — does the approach match how your codebase actually works, or is it making assumptions?
+3. **Off-limits items** — does it propose touching files that are generated, third-party, or otherwise hands-off?
+4. **Scope creep** — is it doing more than you asked? "Refactor the auth module" should not include "also update the tests and the docs."
+5. **Missing concerns** — what risks didn't it mention? Migrations, backwards compatibility, dependent services.
+
+If any of these fail, reject and be specific:
+
+<PromptBlock>
+Rejected. The plan proposes modifying lib/generated/nakama/ which is
+protobuf output — those files are off-limits (see CLAUDE.md).
+Revise the plan to work with the existing generated types.
+</PromptBlock>
+
+## Example
+
+Planning the turn-timer feature for the HOKM game:
+
+<PromptBlock>
+Plan only (no code yet): Add server-side turn timers to the HOKM game.
+When a player exceeds 30 seconds on their turn, the server picks and
+plays a valid card automatically. Write the plan to PLAN.md covering:
+which Nakama RPC functions to modify, what new WebSocket events to emit,
+which Flutter files need updating, and the testing strategy.
+</PromptBlock>
+
+The plan should tell you: which RPC handler to modify, what new event type to define, which Flutter state machine transitions to add, and whether any generated code is affected. If it tries to modify `lib/generated/`, reject immediately.
+
+## Best practices
+
+1. **Keep CLAUDE.md updated before planning sessions.** Stale CLAUDE.md means the plan will be based on wrong assumptions.
+2. **Ask for the plan before the first complex task in a new codebase.** Even if you reject it immediately, reading the plan tells you if Claude understands the structure.
+3. **Make the stopping condition explicit.** "Wait for my approval" is better than assuming Claude knows to stop.
+
+<details>
+<summary>Common pitfall: approving plans without reading the file list</summary>
+
+The most useful part of a plan is the file list, not the prose explanation. The prose can sound correct while the file list reveals a fundamental misunderstanding. Spot-check every file path in the plan against your actual project structure. If a path doesn't exist or shouldn't be touched, that's the mistake — caught before any code was written.
+</details>
