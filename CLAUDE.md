@@ -66,22 +66,51 @@ Explanation and correct approach.
 
 ## Running Example Policy
 
-Use the **Persian card games platform** (HOKM, PASUR, Shelem, 7-e-Khabis — Nakama backend, Flutter frontend) for:
-- Subagents (05), MCP servers (06), Hooks (07), Custom commands (09)
+**Reference pages** — use the **Persian card games platform** (HOKM, PASUR, Shelem, 7-e-Khabis — Nakama backend, Flutter frontend) for examples in subagents, MCP servers, hooks, and custom commands articles. Use a generic side-project elsewhere.
 
-Use a **generic realistic side-project** for everything else (e.g., a SaaS app with auth, a CLI tool, a mobile app). Don't force the card games example where it doesn't fit naturally.
+**Tutorial chapters** — use **Ab Bekhoor** (Flutter water tracker — Riverpod 2.x, Drift 2.x, flutter_local_notifications, fl_chart). All 8 chapters follow this project from validation to App Store listing. Do not mix the two running examples.
 
 ## File Naming
 
-Content files: `NN-kebab-case.mdx` with zero-padded order (01–18).
+**Reference content:** `NN-kebab-case.mdx` with zero-padded order (01–18).
 - `src/content/tier1/01-setup.mdx`
 - `src/content/tier2/12-prompt-engineering.mdx`
 
-## Adding a New Topic Page
+**Tutorial content:** `chN-slug.mdx` with chapter number (0–7).
+- `src/content/tutorial/ch0-validate.mdx`
+- `src/content/tutorial/ch7-ship.mdx`
+
+**Artifacts:** `public/artifacts/chapter-N/filename.ext`
+
+## Adding a New Reference Page
 
 1. Create `src/content/tierN/NN-slug.mdx` with correct frontmatter
-2. Add a `{ href: '/tierN/NN-slug', title: '...', summary: '...' }` entry in `src/data/nav.ts`
-3. The dynamic route `src/pages/tierN/[slug].astro` will pick it up automatically
+2. Add a `{ href: '/reference/tierN/NN-slug', title: '...', summary: '...' }` entry in `src/data/nav.ts`
+3. If it maps to a tutorial chapter, add the entry to `refToChapter` in `src/data/tutorial.ts`
+4. The dynamic route `src/pages/reference/tierN/[slug].astro` will pick it up automatically
+
+## Adding a New Tutorial Chapter
+
+1. Create `src/content/tutorial/chN-slug.mdx` with frontmatter (title, subtitle, chapter, recap, artifact?, refLinks?)
+2. Add the chapter to the `chapters` array in `src/data/tutorial.ts`
+3. Place any artifact files at `public/artifacts/chapter-N/`
+4. The dynamic route `src/pages/tutorial/[slug].astro` picks it up automatically
+
+## Tutorial Chapter Structure
+
+Every tutorial chapter follows this 9-section flow (sections in MDX body; "Where you are" from frontmatter `recap` field):
+
+```
+Where you are   — frontmatter recap (rendered as banner by ChapterLayout)
+The situation   — ## heading
+First attempt   — ## heading (naïve approach)
+Why it falls short — ## heading
+The fix         — ## heading
+Step by step    — ## heading with ### subsections
+Pitfalls        — <details> collapsibles
+Checkpoint      — ## heading (concrete artifact + debug path)
+Next            — ## heading (one-line bridge)
+```
 
 ## Components
 

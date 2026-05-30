@@ -1,0 +1,173 @@
+---
+title: "Should I even build this?"
+subtitle: "Validating an idea in claude.ai before writing code"
+chapter: 0
+recap: "You have an app idea — Ab Bekhoor, a water tracker for iOS and Android. No code written. This chapter is about deciding whether it's worth starting."
+refLinks:
+  - href: "/reference/tier3/15-claudeai-features"
+    title: "claude.ai for developers"
+  - href: "/reference/tier3/16-research-workflows"
+    title: "Research workflows"
+---
+
+**Ab Bekhoor** ("Drink water!" in Persian) — a Flutter mobile app for tracking daily water intake. Daily goal based on weight and activity, 250/500/custom ml logging, streak tracking, local notifications, weekly history chart. Local-only, no backend.
+
+Before you write any code, you need to know two things: does this problem have a market, and is there a specific angle you can own? This chapter uses claude.ai to answer both questions in under an hour.
+
+---
+
+## The situation
+
+You have a water tracker idea. The App Store has dozens of them. You could spend two hours researching manually — browsing competitors, reading reviews, Googling — and still come out with vague impressions. Or you can use claude.ai's Research mode to do structured analysis and synthesize it into a clear signal.
+
+The goal isn't to confirm the idea is good. It's to find out: is there a specific gap the competitors aren't filling? If yes, what is it? If no, you move on.
+
+For Ab Bekhoor, there's a hypothesis worth testing: most water trackers are identical, and no one is building for the specific use case of active adults who want dead-simple logging with no friction.
+
+---
+
+## First attempt (naïve)
+
+Search "best water tracker app 2024" — read a few listicles, skim the top three App Store results. Ask a friend if they'd use a water tracker. Note that most apps look busy and cluttered. Conclude "yeah there's probably room for a cleaner one."
+
+This gives you confirmation bias, not signal. You searched for apps that look bad, found them, and concluded your idea is good.
+
+---
+
+## Why it falls short
+
+- You sampled 3–4 apps, not the competitive landscape. The clean minimalist tracker you're envisioning might already exist at the top of search results you didn't check.
+- "A friend would use it" is noise. Your ICP (ideal customer profile) is specific — the signal you need is whether there's an underserved segment, not whether any person would use it.
+- You haven't checked actual user complaints. App Store reviews are the best primary source on what existing apps get wrong. Reading 20 of them in 10 minutes is doable; most people skip it.
+
+---
+
+## The fix
+
+Claude's Research mode in claude.ai searches the web and synthesizes findings from multiple sources. For competitor research, it's faster and more structured than manual browsing: it can survey the competitive landscape, identify patterns in reviews, and articulate what's missing from existing apps — in a single session.
+
+Research mode is available on claude.ai Pro and Max plans. You're not writing code yet, so there's no Claude Code involved — this is claude.ai in a browser.
+
+**What Research mode is good for here:**
+- Mapping the competitive landscape (names, positioning, user base, ratings)
+- Synthesizing review patterns (what do users complain about across apps?)
+- Identifying underserved segments (who aren't existing apps building for?)
+
+**What it can't reliably give you:**
+- Real-time App Store rankings and download numbers (verify these directly in the App Store)
+- Certainty — it gives you signal, not proof
+
+---
+
+## Step by step
+
+### 1. Competitor landscape
+
+Start a new Research mode session in claude.ai. Use a structured prompt — don't ask "what are the best water tracker apps." That question returns listicle answers. Ask for specific dimensions:
+
+```text
+Survey the competitive landscape for iOS/Android water tracker apps.
+
+For each of the top 5 by App Store visibility:
+1. App name and core positioning (one sentence)
+2. Daily intake tracking approach (glasses? ml? oz? custom?)
+3. Goal-setting method (manual? weight-based? doctor recommendation?)
+4. Notification/reminder system
+5. App Store rating and approximate review count
+6. The most common complaints in reviews (at least 3)
+
+Cite sources. Don't include apps that haven't been updated in 2+ years.
+```
+
+Read the output critically. Look for: are the top 5 all similar? What do reviews complain about in common? Is there a UX pattern everyone copies?
+
+### 2. Gap analysis
+
+Follow up in the same session:
+
+```text
+Based on the competitor research above:
+
+1. What is missing from all of these apps that a focused competitor could own?
+   Be specific — not "better UX" but a concrete unmet need.
+
+2. Who are the users that existing apps seem to poorly serve?
+   Look for evidence in reviews, not assumptions.
+
+3. Is there a positioning angle that none of the existing apps are taking?
+
+4. What would make a user switch from their current app to a new one?
+   What's the threshold?
+```
+
+### 3. The build/don't-build decision
+
+After the gap analysis, make a decision with this framework. You're looking for **one specific, defensible answer** to: "Who is underserved, and why?"
+
+For Ab Bekhoor, the Research mode output would likely surface that:
+- Most apps over-gamify (streaks, badges, social) — users who want dead-simple logging complain about this
+- Notification UX is almost universally bad — too aggressive or too easy to ignore
+- "Set it and forget it" users (log once in the morning, set a goal, done) aren't who existing apps are optimized for
+
+That's enough signal to proceed. You have a specific angle: minimal, no-friction logging for people who just want to hit a daily goal without an app that nags them.
+
+If Research mode surfaces a well-rated app that already occupies this exact positioning, reconsider before building.
+
+### 4. ICP definition before writing code
+
+One more prompt before you open your IDE:
+
+```text
+Based on the research above, write a one-paragraph ICP (Ideal Customer Profile)
+for a minimal water tracker targeting the gap you identified.
+
+Include:
+- Who they are (demographic, lifestyle specifics)
+- The specific pain they have with existing apps
+- What they're currently doing instead
+- Why they'd switch
+
+Be specific. If the data doesn't support a specific claim, say so.
+```
+
+Save this output. Paste it into your CLAUDE.md in Chapter 1.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: using Research mode to confirm the idea rather than stress-test it</summary>
+
+Research mode will find evidence for whatever angle you give it. If you ask "what makes a water tracker successful" you'll get a list of features to build. Ask instead: "what would make someone NOT build this" and "what existing app already does this well." The goal is to find the reason not to build, and either refute it or accept it.
+</details>
+
+<details>
+<summary>Pitfall: skipping the ICP step and going straight to code</summary>
+
+Without a defined ICP, CLAUDE.md becomes vague ("build a clean water tracker") and Claude will fill in the blanks with generic assumptions. Spending 10 minutes on the ICP now shapes every prompt you write for the next 7 chapters — Claude knows who it's building for.
+</details>
+
+<details>
+<summary>Pitfall: treating Research mode output as ground truth</summary>
+
+Research mode synthesizes web sources. App Store rankings change; reviews get removed; newer apps may not have much review volume yet. Verify anything that would change your build decision directly: check the App Store yourself for the top 3 apps Research mode names. If the data matters, confirm it.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. A list of 3–5 competitors with their key weaknesses identified
+2. One specific gap statement: "Existing apps fail [specific user] because [specific reason]"
+3. A one-paragraph ICP you're willing to commit to
+
+If you can't write the gap statement, the research wasn't specific enough. Go back to the gap analysis prompt and push harder: ask Claude to name the one segment most underserved, not a list of possibilities.
+
+---
+
+## Next
+
+Ab Bekhoor has a clear angle — minimal logging for people who want to track without friction. Chapter 1: day one with Claude Code. Setup, CLAUDE.md, and scaffolding the project with the ICP already in context.

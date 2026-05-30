@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.x"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos 2>&1 | tee analyze.txt
+        continue-on-error: true
+
+      - name: Test
+        run: flutter test --no-pub 2>&1 | tee test.txt
+        continue-on-error: true
+
+      - name: Summarize with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --print \
+            --allowedTools "Read" \
+            --model claude-haiku-4-5-20251001 \
+            "Read analyze.txt and test.txt.
+
+             Report:
+             1. Any analyzer errors (not warnings) that would block shipping — list file and line.
+             2. Any test failures — list the test name and the failure message.
+             3. If everything is clean, say: 'CI clean.'
+
+             Be concise. This output appears in a PR comment."
+
+      - name: Fail if issues found
+        run: |
+          flutter analyze --no-fatal-infos --fatal-warnings
+          flutter test --no-pub

@@ -1,0 +1,227 @@
+---
+title: "Day one: getting Claude up to speed"
+subtitle: "Setup, CLAUDE.md, and scaffolding"
+chapter: 1
+recap: "Chapter 0: Ab Bekhoor validated — minimal water logging for users who want no friction. A specific ICP in hand, no competitors owning this angle. Time to write code."
+artifact:
+  filename: "claude-md.md"
+  description: "Starter CLAUDE.md for Ab Bekhoor — tech stack, features, non-goals, architecture, code conventions."
+  path: "/artifacts/chapter-1/claude-md.md"
+refLinks:
+  - href: "/reference/tier1/01-setup"
+    title: "Setup & first steps"
+  - href: "/reference/tier1/02-claude-md"
+    title: "CLAUDE.md"
+---
+
+**CLAUDE.md** is the one file Claude reads at the start of every session. Without it, Claude knows nothing about your project except what you tell it in the current conversation. With it, every session starts with the same shared context — your tech choices, your scope, your constraints.
+
+Writing it before you write any code is the highest-leverage thing you can do on day one.
+
+---
+
+## The situation
+
+You need Claude to understand Ab Bekhoor well enough to make coherent decisions across every session for the next 7 chapters. That means: which state management library, which packages, which features are in scope, which are explicitly out.
+
+Right now Claude knows nothing. You could explain the project in every session — or you could write it down once in a file Claude reads automatically.
+
+The problem isn't just memory. It's defaults. When Claude doesn't know your tech choices, it picks reasonable ones — Provider instead of Riverpod, SharedPreferences instead of Drift, a different folder structure than the one you have in mind. These defaults are internally consistent, but they're not yours. Session 2 may pick different ones.
+
+---
+
+## First attempt (naïve)
+
+Install Claude Code, `cd` into an empty folder, run `claude`, and type:
+
+```text
+Build me a Flutter water tracker app with daily goals and streak tracking.
+```
+
+Claude produces something reasonable. Provider for state. SharedPreferences for storage. A `main.dart` with three screens. It compiles. You're happy.
+
+Session 2:
+
+```text
+Add a weekly history chart.
+```
+
+Claude doesn't remember session 1. It looks at the code, sees Provider, notices you mentioned "streak tracking" — but now it's reading a codebase it generated, not one it remembers designing. It suggests Riverpod for the chart's state because "it's better suited for this pattern." Two sessions in, two different state management approaches in the same project.
+
+By session 5, you're spending 20% of each session re-explaining what the project is.
+
+---
+
+## Why it falls short
+
+Every Claude Code session starts with a fresh context window. The conversation history from yesterday is gone. Claude reads CLAUDE.md automatically if it exists in the working directory, but if it doesn't exist, Claude starts with only what it can infer from the code.
+
+Code inference is imperfect. A project that uses Provider tells Claude "this project uses Provider" — but it doesn't tell Claude "this project should NOT use Riverpod going forward" or "we decided against Firebase for specific reasons." Intent lives in CLAUDE.md, not in the code.
+
+The other failure mode: Claude invents missing context. If CLAUDE.md is absent and the project has no state management yet, Claude will pick one. Whichever it picks, it'll be consistent within that session. But start a new session on a half-scaffolded project and Claude may pick differently.
+
+---
+
+## The fix
+
+Write CLAUDE.md before running `claude` for the first time. It takes 20–30 minutes and makes every subsequent session faster and more coherent.
+
+**What goes in day-one CLAUDE.md:**
+
+1. **Project name and one-paragraph description** — Claude uses this to frame every response
+2. **Tech stack with exact packages** — not "use a state management library" but `Riverpod 2.x (AsyncNotifier pattern)`
+3. **Feature list** — what's in scope, numbered
+4. **Non-goals** — explicit out-of-scope items prevent Claude from "helpfully" adding features you don't want
+5. **Architecture decisions** — folder structure pattern, which packages own which concerns
+6. **Code conventions** — anything you'd reject in a PR ("no setState() in files that use Riverpod")
+
+The ICP from Chapter 0 goes in too. When Claude knows who it's building for, its feature suggestions stay in scope.
+
+**What does NOT go in CLAUDE.md:**
+
+- Implementation details that change (individual function names, widget trees, screen layouts)
+- Anything you'd need to update after every coding session — CLAUDE.md should be stable for weeks
+- Instructions for Claude's behavior (those go in `.claude/commands/` — Chapter 6)
+
+---
+
+## Step by step
+
+### 1. Install and authenticate
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+On first run, `claude` will prompt you to authenticate with your Anthropic account. Follow the browser auth flow.
+
+```bash
+cd ~/projects/ab-bekhoor   # or wherever you keep projects
+claude --version            # verify install
+```
+
+Always run `claude` from the project root. Claude Code uses the working directory to find CLAUDE.md and scope file operations. Running it from a parent directory or a subdirectory causes subtle problems.
+
+### 2. Write CLAUDE.md before running claude
+
+Create `CLAUDE.md` in the project root. The artifact at the bottom of this page is a complete starter for Ab Bekhoor — download it and adapt it. The key sections:
+
+**Tech stack — be specific:**
+
+```markdown
+## Stack
+
+- Flutter 3.x (iOS + Android)
+- State management: Riverpod 2.x (AsyncNotifier pattern)
+- Local storage: Drift 2.x (SQLite wrapper)
+- Notifications: flutter_local_notifications 17.x
+- Charts: fl_chart 0.x
+- No Firebase, no Supabase, no backend of any kind
+```
+
+Vague entries like "use Riverpod for state" are less effective than specifying the pattern (`AsyncNotifier`, not `StateNotifier`). Claude knows both; you need it to pick one.
+
+**Non-goals — equally important:**
+
+```markdown
+## Non-goals (do not build these)
+
+- Backend sync or cloud storage
+- Social features (sharing, challenges, leaderboards)
+- HealthKit / Google Fit integration
+```
+
+Non-goals prevent scope creep in both directions: Claude won't suggest adding a backend, and you won't be tempted to say yes when it sounds reasonable.
+
+**ICP from Chapter 0:**
+
+```markdown
+## ICP
+
+Active adults, 25–45, who want to hit a daily hydration goal without an app that gamifies,
+nags, or requires accounts. Would switch for: one-tap logging, no friction, no sign-up.
+```
+
+This is lightweight but enough. When Claude suggests a feature, it now has a test it can apply.
+
+### 3. Scaffold with CLAUDE.md in place
+
+Now run `claude` and give it the scaffold prompt:
+
+```text
+Create the Flutter project structure for Ab Bekhoor.
+
+Use feature-first folder structure:
+lib/features/home/, lib/features/history/, lib/features/settings/
+Each feature: data/, domain/, presentation/ subdirectories
+lib/providers/ for Riverpod providers
+lib/database/ for Drift tables
+
+Create pubspec.yaml with the packages in CLAUDE.md at their specified versions.
+Don't add any packages not in CLAUDE.md.
+Create placeholder files — no implementation yet, just structure.
+```
+
+Compare this to the naïve prompt from earlier. The difference: Claude doesn't have to guess anything. Package choices, folder structure, and scope are all explicit. The output should reflect exactly what you asked for.
+
+**Test that CLAUDE.md is working:**
+
+After scaffolding, ask without any context:
+
+```text
+What state management library does this project use, and what pattern specifically?
+```
+
+Claude should answer `Riverpod 2.x, AsyncNotifier pattern` without looking at the code. If it's reading CLAUDE.md, it has this. If it says something vague or wrong, check that CLAUDE.md is in the project root and that you ran `claude` from that directory.
+
+### 4. Verify the scaffold
+
+```bash
+flutter pub get
+flutter run
+```
+
+The app should launch — blank screens are fine, errors are not. If `flutter pub get` fails on a package version, adjust the version in `pubspec.yaml` and in CLAUDE.md to match. Keep them in sync.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: writing CLAUDE.md after scaffolding</summary>
+
+If you scaffold first, Claude has already made choices that may conflict with what you write in CLAUDE.md. The code becomes the ground truth, not CLAUDE.md. You'll either need to explicitly note the discrepancies ("we decided to use X not Y, which is already in the code — don't change it") or refactor. Neither is good. Write CLAUDE.md first.
+</details>
+
+<details>
+<summary>Pitfall: documenting implementation details instead of decisions</summary>
+
+CLAUDE.md that lists widget names, individual function signatures, or screen layouts goes stale within days. When the code diverges from CLAUDE.md, Claude gets confused — it reads both and tries to reconcile them. Stick to decisions that don't change week-to-week: tech stack, feature scope, architecture patterns. Implementation details belong in the code.
+</details>
+
+<details>
+<summary>Pitfall: treating CLAUDE.md as a hard constraint</summary>
+
+Claude reads CLAUDE.md as context, not as rules it's forced to follow. It can still suggest things outside scope, especially if prompted in a way that invites it. CLAUDE.md reduces drift; it doesn't eliminate it. The actual enforcement tools are `--allowedTools`, `--disallowedTools`, and hooks — Chapter 3 covers these. Don't rely on CLAUDE.md alone to prevent unwanted behavior.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. Claude Code installed and authenticated (`claude --version` responds)
+2. A Flutter project that runs `flutter run` — blank screens are fine
+3. A CLAUDE.md in the project root with at least: stack, feature list, non-goals
+4. Claude correctly answering "what state management library does this project use?" without reading the code
+
+**If Claude gives wrong answers about the project:** verify CLAUDE.md is at the project root (not inside `lib/` or any subdirectory), has an explicit `## Stack` section, and that you launched `claude` from the project root directory (`pwd` to confirm).
+
+**If `flutter run` fails after scaffolding:** the most common cause is a package version conflict. Ask Claude: `"flutter pub get is failing — read the error and fix pubspec.yaml"` — it can read the error output and correct the versions.
+
+---
+
+## Next
+
+The project scaffolds cleanly. CLAUDE.md is in place. Chapter 2: writing the first real feature — and what happens when you skip plan mode.

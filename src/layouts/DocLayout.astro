@@ -12,6 +12,7 @@ const {
 } = Astro.props;
 
 const currentPath = Astro.url.pathname;
+const mode: 'tutorial' | 'reference' = currentPath.startsWith('/tutorial') ? 'tutorial' : 'reference';
 ---
 
 <!doctype html>
@@ -50,7 +51,7 @@ const currentPath = Astro.url.pathname;
           For developers. No fluff.
         </p>
       </div>
-      <Sidebar currentPath={currentPath} />
+      <Sidebar currentPath={currentPath} mode={mode} />
     </aside>
 
     <!-- Mobile overlay -->

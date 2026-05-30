@@ -1,0 +1,158 @@
+---
+title: "Shipping it"
+subtitle: "App Store copy, anti-patterns recap, what comes next"
+chapter: 7
+recap: "Chapter 6: custom commands and headless CI in place. The full Claude Code workflow is running. Ab Bekhoor is feature-complete. Time to get it onto devices."
+artifact:
+  filename: "appstore-prompt.md"
+  description: "A structured prompt template for generating all App Store listing fields: subtitle, description, keywords, promotional text."
+  path: "/artifacts/chapter-7/appstore-prompt.md"
+refLinks:
+  - href: "/reference/tier2/12-prompt-engineering"
+    title: "Prompt engineering for agents"
+  - href: "/reference/tier2/13-guardrailing"
+    title: "Guardrailing patterns"
+  - href: "/reference/tier2/14-anti-patterns"
+    title: "Anti-patterns"
+  - href: "/reference/tier3/17-marketing-workflows"
+    title: "Marketing workflows"
+---
+
+Ab Bekhoor is built. Six chapters of Claude Code discipline have produced a codebase that runs, has been reviewed by an independent context window, has passing tests, and ships to CI without surprises. This chapter covers the last mile: writing the App Store listing and an honest account of what goes wrong when you skip what came before.
+
+---
+
+## App Store copy
+
+The App Store listing is where the ICP definition from Chapter 0 pays off a second time. You defined who the app is for before writing a line of code — that definition now tells you exactly what the listing needs to say.
+
+### Why Claude is useful here
+
+App Store copy has hard character constraints, a specific structure, and a well-understood failure mode: generic claims that could describe any app. Claude handles the structural work fast (fitting a value proposition into 30 characters, generating keyword lists that don't duplicate the title) while you handle the judgment calls: which differentiator to lead with, whether the description's first line earns the "more" tap.
+
+The workflow is the same as Chapter 0 but reversed: Research mode to understand the competitive landscape of App Store listings, then a structured prompt to generate yours.
+
+### Step 1 — Research what works
+
+Before generating copy, open a Research mode session in claude.ai and survey how top apps in your category present themselves:
+
+```text
+Search the iOS App Store listings for the top 5 Health & Fitness apps
+that focus on hydration or water tracking.
+
+For each:
+1. Their subtitle (30 chars — what keyword are they targeting?)
+2. The first sentence of their description (what they lead with)
+3. Whether they mention gamification, streaks, or social features
+4. App Store rating and approximate review count
+
+Identify: what claim does no current top-10 app make in their subtitle?
+```
+
+This takes five minutes and tells you which positioning angle is unoccupied. If four of the top five apps lead with "streak tracking," you know leading with "no pressure, no streaks" is a differentiator — not just an opinion, but a gap in the current listings.
+
+### Step 2 — Generate the listing
+
+Use the artifact from this page. Fill in the setup block with your ICP (already written in CLAUDE.md), your actual differentiator, and your feature list. Paste the whole prompt into a standard claude.ai session — Research mode isn't needed for generation.
+
+The prompt requests all five fields in one pass: subtitle options, promotional text, description, keyword list, and notes on what was left out. The notes section is important: it tells you what data Claude couldn't work with. "I couldn't make a specific claim about user count or ratings" is useful feedback — if you have that data, go back and add it.
+
+### What Claude is good and bad at here
+
+**Good:** Structure. Fitting a value proposition into 30 characters, generating keyword permutations, writing a 4000-character description that follows the fold pattern. Claude does this faster and more systematically than you will.
+
+**Bad:** The one line that makes someone stop scrolling. That line almost always comes from a real user quote, an unexpected insight from someone who used the beta, or a specific moment you witnessed — something Claude doesn't have. Write that line yourself; use Claude for everything around it.
+
+**Necessary:** Edit the output. Claude's marketing copy is competent and recognizable — parallel structure, three balanced bullets, a "designed for" sentence. It reads fine and stands out from nothing. It doesn't stand out from a good human edit. Treat the output as a first draft with all the structural work done, not as finished copy.
+
+---
+
+## Anti-patterns recap
+
+Seven chapters of discipline. Here's what goes wrong when you don't apply them — not as a warning, but as a map of which shortcut costs what.
+
+### Skipping CLAUDE.md (Chapter 1)
+
+**What you save:** 30 minutes on day one.
+
+**What it costs:** Every session re-explaining the project. Claude making different stack choices in sessions 2, 4, and 7. A codebase where three different patterns exist for the same problem because Claude improvised each time. The drift is invisible at first and expensive to fix later.
+
+**When it's acceptable:** A throwaway script you'll delete. A spike you're genuinely not committing to. Anything longer than a day of work: write CLAUDE.md.
+
+### Treating CLAUDE.md as enforcement (Chapter 2)
+
+**What you assume:** "It's in CLAUDE.md, Claude will follow it."
+
+**What actually happens:** Claude reads CLAUDE.md as background context and makes local decisions that override it. You ship with `FutureProvider` when you specified `AsyncNotifier` because the local implementation looked cleaner to Claude at the time.
+
+**The fix:** Plan mode catches the deviation before code is written. Deny rules and hooks enforce it after. CLAUDE.md alone is memory, not constraint.
+
+### Skipping plan mode on "small" changes (Chapter 2)
+
+**What you assume:** It's a small change, a plan isn't necessary.
+
+**What actually happens:** Claude writes the change and also refactors three related files, renames a class, and adds a package. All of it technically reasonable. None of it what you asked for.
+
+**The tell:** You find yourself reading a large diff looking for the actual change you wanted. That's the cost of skipping the plan step.
+
+### No permissions or hooks (Chapter 3)
+
+**What you assume:** Claude won't touch things it shouldn't.
+
+**What actually happens:** Claude adds `intl` to `pubspec.yaml` because it needs date formatting. It modifies `lib/main.dart` to register a new provider. Both are correct in isolation; neither was approved.
+
+**The fix is structural, not prompt-based.** Adding "don't touch pubspec.yaml" to CLAUDE.md is the same mistake as the enforcement assumption above. The hook fires regardless of Claude's reasoning.
+
+### Self-review (Chapter 4)
+
+**What you assume:** Asking Claude to review its own code will catch mistakes.
+
+**What actually happens:** The same context that wrote `DateTime.now()` into the streak calculation also reviews it. The reviewer reads the code through the implementer's intent. The bug ships.
+
+**The cost:** Not just the bug, but the false confidence. A self-review that returns "LGTM" is worse than no review — you're now committed to code you believe was checked.
+
+### Ignoring MCP for fast-moving libraries (Chapter 5)
+
+**What you assume:** Claude knows the current fl_chart API.
+
+**What actually happens:** Claude writes valid-looking code against the fl_chart 0.63 API. You have 0.69 installed. The error message is confusing because the method exists — it just has a different signature now. You spend 40 minutes debugging a problem that `use Context7` would have prevented.
+
+**The pattern:** Any library that has had a major version in the last 18 months is a candidate for API drift. Flutter ecosystem packages move fast.
+
+### Long, polluted sessions (Chapter 6)
+
+**What you assume:** Keeping context in the session makes subsequent prompts faster.
+
+**What actually happens:** By turn 30 of a debugging session, Claude is carrying the context of six failed approaches. When you finally ask for the solution, Claude has to synthesize the whole debugging history into an answer. The cost is tokens; the result is sometimes a solution that incorporates reasoning from a dead end that was abandoned six turns ago.
+
+**The discipline:** When you know what the problem is and how to fix it, start fresh. The debugging was your process; the implementation doesn't need to inherit it.
+
+### Over-applying the toolbox
+
+Chapters 3–6 introduce a lot of machinery: hooks, permissions, subagents, MCP servers, custom commands, CI workflows. All of it earns its place for Ab Bekhoor — a multi-week project with real features. For a 200-line script you're writing in an afternoon, most of it is overhead.
+
+The discipline isn't "use all of this on every project." It's knowing which tool solves which problem, so you reach for the right one when the project justifies it. A CLAUDE.md is worth it for any project longer than a day. Subagents are worth it for review and testing on non-trivial features. Hooks are worth it when you've been surprised by Claude touching something it shouldn't. MCP is worth it for libraries that have changed since training.
+
+Match the tooling to the project's lifetime and complexity.
+
+---
+
+## What comes next
+
+Ab Bekhoor on the App Store is not the end of using Claude on the project. The patterns from these chapters continue:
+
+**Maintenance and bug fixes** — the reviewer agent and `/review` command work for every change, not just initial features. A Claude-reviewed fix takes roughly the same time as an unreviewed one; the only variable is whether you run `/review`.
+
+**New features** — `/scaffold-feature`, plan mode, and the layer-by-layer workflow apply to every feature addition. The CLAUDE.md grows: as you make new architectural decisions, document them.
+
+**The stretch goal: HealthKit and Google Fit** — wiring Ab Bekhoor to platform health APIs is the one feature that benefits from the Anthropic API rather than Claude Code. It's research-heavy (each platform has its own permission model and data format), requires writing against APIs Claude may not know well, and involves platform-specific setup that Context7 can help with. When you get there, the tutorial's Part 2 would be Chapter 8.
+
+---
+
+## The end
+
+Eight chapters, one working app, a Claude Code workflow that runs without surprising you.
+
+The reference section — everything that's been linked throughout this tutorial — is at `/reference`. When you need to look up the exact syntax for a hook output format, the full list of slash commands, or what actually goes into an MCP server configuration, that's where to go. The tutorial gave you the when and why; the reference gives you the what exactly.
+
+Build something.

@@ -1,11 +1,11 @@
 ---
 import { getCollection } from 'astro:content';
-import TopicLayout from '../../layouts/TopicLayout.astro';
+import ChapterLayout from '../../layouts/ChapterLayout.astro';
 import Callout from '../../components/Callout.astro';
 import PromptBlock from '../../components/PromptBlock.astro';
 
 export async function getStaticPaths() {
-  const entries = await getCollection('tier3');
+  const entries = await getCollection('tutorial');
   return entries.map(entry => ({
     params: { slug: entry.slug },
     props: { entry },
@@ -16,13 +16,14 @@ const { entry } = Astro.props;
 const { Content } = await entry.render();
 ---
 
-<TopicLayout
+<ChapterLayout
   title={entry.data.title}
-  tier={entry.data.tier}
-  order={entry.data.order}
-  summary={entry.data.summary}
+  subtitle={entry.data.subtitle}
+  chapter={entry.data.chapter}
   slug={entry.slug}
-  collection="tier3"
+  recap={entry.data.recap}
+  artifact={entry.data.artifact}
+  refLinks={entry.data.refLinks}
 >
   <Content components={{ Callout, PromptBlock }} />
-</TopicLayout>
+</ChapterLayout>

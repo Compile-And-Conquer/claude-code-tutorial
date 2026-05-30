@@ -1,8 +1,8 @@
 ---
 import { getCollection } from 'astro:content';
-import TopicLayout from '../../layouts/TopicLayout.astro';
-import Callout from '../../components/Callout.astro';
-import PromptBlock from '../../components/PromptBlock.astro';
+import TopicLayout from '../../../layouts/TopicLayout.astro';
+import Callout from '../../../components/Callout.astro';
+import PromptBlock from '../../../components/PromptBlock.astro';
 
 export async function getStaticPaths() {
   const entries = await getCollection('tier2');

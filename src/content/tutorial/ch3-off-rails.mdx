@@ -1,0 +1,235 @@
+---
+title: "When Claude goes off the rails"
+subtitle: "Permissions, allowed-tools, hooks, deny rules"
+chapter: 3
+recap: "Chapter 2: water intake logging built with a plan-first workflow. Plan mode catches scope drift before code is written — but only when you use it."
+artifact:
+  filename: "pre-write-hook.sh"
+  description: "PreToolUse hook that blocks writes to lib/main.dart and prompts before pubspec.yaml changes."
+  path: "/artifacts/chapter-3/pre-write-hook.sh"
+refLinks:
+  - href: "/reference/tier1/08-permissions"
+    title: "Permissions & allowed-tools"
+  - href: "/reference/tier1/07-hooks"
+    title: "Hooks"
+---
+
+Chapter 2 established that CLAUDE.md is advisory and plan mode is how you catch drift before code is written. Both require your active participation: you have to read the plan and catch the deviation. When you're moving fast, you skip the plan. When the context is long, you skim it.
+
+Permissions and hooks are the next line of defense — they enforce constraints automatically, at the tool-call level, whether or not you're paying close attention.
+
+---
+
+## The situation
+
+Three sessions into Ab Bekhoor. The logging feature works. You're adding streak tracking. You ask Claude to "update the home screen to show the current streak" — quick enough that you skip the plan step. Claude writes the streak display. Also refactors the `HomeScreen` widget to extract a `WaterSummaryCard`. Also notices `pubspec.yaml` is missing the `intl` package for date formatting, adds it. All of it technically correct. None of it what you asked for.
+
+The pubspec change is the real problem. `flutter pub get` now needs to run, the lockfile changes, and you have an unreviewed dependency in your project. You didn't approve it. You didn't even know it was happening until you ran `git diff`.
+
+---
+
+## First attempt (naïve)
+
+Add stronger instructions to CLAUDE.md:
+
+```markdown
+## Rules
+- Do not modify pubspec.yaml without asking first
+- Do not refactor files that aren't part of the current task
+- Only touch files directly related to what I asked for
+```
+
+Chapter 2 already explained why this isn't enough. CLAUDE.md is context. Claude weighs these rules against the local situation — if adding `intl` seems obviously necessary and low-risk, the rule is likely to lose. You need something that fires regardless of Claude's reasoning.
+
+---
+
+## Why it falls short
+
+Prompt-level and CLAUDE.md-level instructions set intent. They don't intercept tool calls. When Claude has decided to write a file, it issues a `Write` or `Edit` tool call. That call happens unless something external stops it.
+
+Permissions and hooks operate at the tool-call level — below the language model, before the file is touched. Claude's reasoning is irrelevant at that point: the tool call either passes the filter or it doesn't.
+
+---
+
+## The fix: three layers of enforcement
+
+### Layer 1 — Deny rules (blunt, session-agnostic)
+
+Deny rules in `.claude/settings.json` block specific tool patterns unconditionally. They apply to every session that uses that project, forever, without you having to remember to set flags.
+
+For Ab Bekhoor, two rules are worth setting immediately:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(flutter clean)",
+      "Bash(dart pub global *)"
+    ]
+  }
+}
+```
+
+`flutter clean` deletes the build cache — it's occasionally useful but Claude has no business running it autonomously. `dart pub global *` installs global packages; never appropriate during a session.
+
+Deny rules use glob patterns matched against the full tool call string. `Bash(flutter clean)` matches exactly that command. `Bash(rm -rf *)` blocks any recursive delete. When a deny rule matches, Claude sees the block and has to find a different approach — it can't override the rule from within the conversation.
+
+<Callout type="warning">
+Project-level `.claude/settings.json` can block tools, but the `autoApprove` setting only works in your user-level `~/.claude/settings.json`. A project settings file that tries to auto-approve something is silently ignored. If you're setting up guardrails for yourself, project settings are the right place. If you're trying to auto-approve for a CI pipeline, that goes in user settings.
+</Callout>
+
+### Layer 2 — Allowed-tools (focused sessions)
+
+`--allowedTools` at the CLI restricts Claude to a specific set of tools for the entire session. Useful when you know exactly what kind of work you're doing:
+
+```bash
+# Read-only audit session — Claude cannot write anything
+claude --allowedTools "Read,Bash(flutter analyze),Bash(flutter test)"
+
+# Writing session scoped to lib/features/home/ only
+claude --allowedTools "Read,Edit,Write,Bash(dart run build_runner build)"
+```
+
+The second example still allows `Edit` and `Write` globally — Claude could edit any file, not just `lib/features/home/`. For file-level scoping you need hooks (Layer 3). But `--allowedTools` is the right tool for restricting *kinds* of operations: a session where Claude shouldn't run any shell commands, or a session where it should only be able to read.
+
+Combine with deny rules: deny rules block dangerous patterns in all sessions; `--allowedTools` further restricts a specific session.
+
+### Layer 3 — Hooks (precise, conditional)
+
+Hooks are shell scripts that fire before or after Claude's tool calls. A PreToolUse hook receives the tool name and its inputs as JSON on stdin, and outputs a decision: allow, deny, or ask (defer to the user).
+
+This is the right tool for the `pubspec.yaml` problem. A hook that fires before any `Write` or `Edit` call and checks the target file can block the specific dangerous case without restricting Claude's ability to write other files.
+
+---
+
+## Step by step
+
+### 1. Create the settings file
+
+If `.claude/settings.json` doesn't exist, create it at the project root:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(flutter clean)",
+      "Bash(dart pub global *)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}
+```
+
+These three rules cover the most destructive things Claude might do autonomously. `rm -rf *` is the obvious one; `flutter clean` is the gotcha that appears innocent.
+
+### 2. Set up the hook
+
+Create `.claude/hooks/` and drop the artifact from this page there:
+
+```bash
+mkdir -p .claude/hooks
+# copy pre-write-hook.sh from /artifacts/chapter-3/pre-write-hook.sh
+chmod +x .claude/hooks/pre-write-hook.sh
+```
+
+Register it in `.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(flutter clean)",
+      "Bash(dart pub global *)",
+      "Bash(rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {"type": "command", "command": "bash .claude/hooks/pre-write-hook.sh"}
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook fires on every `Write` or `Edit` tool call. It reads the target file path from the tool input JSON and makes a decision:
+
+- **`lib/main.dart`** → deny. This file wires together the entire app; Claude has no business touching it during a feature session. If it genuinely needs to change, you do it manually.
+- **`pubspec.yaml`** → ask. Pauses and shows you the reason before proceeding, so you can confirm or cancel.
+- **Everything else** → allow (exit 0).
+
+### 3. Test the hook manually
+
+Before trusting a hook in a real session, test it:
+
+```bash
+# Simulate a Write call to lib/main.dart
+echo '{"file_path": "lib/main.dart", "content": "test"}' \
+  | bash .claude/hooks/pre-write-hook.sh
+
+# Should output:
+# {"decision":"deny","reason":"lib/main.dart is protected..."}
+
+# Simulate a write to a feature file — should exit silently (allow)
+echo '{"file_path": "lib/features/home/presentation/home_screen.dart", "content": "test"}' \
+  | bash .claude/hooks/pre-write-hook.sh
+# Should produce no output, exit 0
+```
+
+If the deny case doesn't produce JSON output, the hook won't work correctly — Claude needs the JSON to display a meaningful block message. An empty output with a non-zero exit code will stop the tool call, but Claude won't know why.
+
+### 4. How Claude responds to a block
+
+When the hook denies a call, Claude receives the `reason` string. It typically responds by explaining what it was trying to do and asking how you'd like to proceed. It won't retry the blocked call automatically.
+
+For the `lib/main.dart` case, a typical response:
+
+> "I was going to add the streak provider registration to `lib/main.dart`, but the hook blocked that edit. Would you like to do that manually, or should I show you exactly what line to add?"
+
+That's the correct outcome. Claude found the right change, couldn't make it autonomously, and handed the decision back to you. You make the edit, Claude continues.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: locking down so much that sessions become unproductive</summary>
+
+If every write triggers an "ask" hook, you spend the session approving routine operations. Hooks should target the specific danger, not everything. For Ab Bekhoor: `lib/main.dart` and `pubspec.yaml` are the high-risk files. Feature files under `lib/features/` are low risk — Claude should be able to write those freely. Scope the hook to the files that matter.
+</details>
+
+<details>
+<summary>Pitfall: a hook that fails silently</summary>
+
+If the hook script errors out (missing Python, bad JSON parsing, permission denied), it exits non-zero for the wrong reason. Claude may see the block as an allow (if the exit code is treated differently) or as a confusing error. Always test hooks with the `echo | bash` pattern before relying on them. Check that the hook file is executable (`chmod +x`) and that `python3` is available in the path the hook runs under.
+</details>
+
+<details>
+<summary>Pitfall: deny rules that block Claude's legitimate diagnostic commands</summary>
+
+If you add `Bash(flutter *)` to the deny list to restrict package installs, you've also blocked `flutter analyze`, `flutter test`, and `flutter run` — commands you want Claude to be able to use. Deny rules match against the literal command string, so `Bash(flutter clean)` only blocks that exact command. Use the most specific pattern that captures the dangerous case. Test your deny rules with the intended blocked command before committing to them.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. `.claude/settings.json` at the project root with at least the three deny rules
+2. `.claude/hooks/pre-write-hook.sh` installed and executable
+3. Verified the hook manually with the `echo | bash` test: deny fires for `lib/main.dart`, allow passes for a feature file
+
+**If the hook isn't firing during a session:** check that `settings.json` is in the project root (not inside `.claude/`), the JSON is valid (run `python3 -m json.tool .claude/settings.json`), and the hook command path is correct relative to where you run `claude`.
+
+**If Claude ignores deny rules:** confirm you're running `claude` from the project root, not a subdirectory. Claude loads project settings from the working directory.
+
+---
+
+## Next
+
+Permissions and hooks handle the cases where Claude acts without your approval. Chapter 4: the cases where one Claude isn't enough — and how two instances working in parallel can build and review simultaneously.

@@ -1,86 +1,60 @@
 ---
-import DocLayout from '../layouts/DocLayout.astro';
-import { nav, tierMeta } from '../data/nav';
+import HomeLayout from '../layouts/HomeLayout.astro';
 ---
 
-<DocLayout title="Claude Dev Guide">
+<HomeLayout title="Claude Dev Guide">
+  <div class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
 
-  <!-- Header -->
-  <div class="mb-10 pb-8 border-b border-rim">
-    <h1 class="text-xl font-semibold text-prose mb-3">Claude Dev Guide</h1>
-    <p class="text-dim text-sm leading-relaxed max-w-[60ch]">
-      Opinionated reference for developers building side projects with Claude.
-      Deepest coverage on <strong class="text-prose font-medium">Claude Code</strong> —
-      automation, agent guardrailing, and keeping sessions from going off the rails.
-      Pro/Max sufficient for most of this; API-only features are marked.
-    </p>
-    <div class="flex flex-wrap gap-3 mt-5 text-xs text-dim">
-      <span class="flex items-center gap-1.5">
-        <span class="inline-block w-2 h-2 rounded-sm bg-amber/60"></span>
-        <span><span class={`font-mono ${tierMeta[1].badge} px-1 rounded`}>T1</span> Claude Code — deep coverage (~50%)</span>
-      </span>
-      <span class="flex items-center gap-1.5">
-        <span class="inline-block w-2 h-2 rounded-sm bg-blue-500/40"></span>
-        <span><span class={`font-mono ${tierMeta[2].badge} px-1 rounded`}>T2</span> Agent Craft — strong coverage (~25%)</span>
-      </span>
-      <span class="flex items-center gap-1.5">
-        <span class="inline-block w-2 h-2 rounded-sm bg-violet-500/40"></span>
-        <span><span class={`font-mono ${tierMeta[3].badge} px-1 rounded`}>T3</span> Claude.ai & API — survey (~25%)</span>
-      </span>
+    <!-- Site title -->
+    <div class="mb-12 text-center">
+      <h1 class="text-2xl font-semibold text-prose mb-2">Claude Dev Guide</h1>
+      <p class="text-sm text-dim">For developers building side projects with Claude.</p>
     </div>
+
+    <!-- Two-path cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+
+      <!-- Tutorial card -->
+      <a
+        href="/tutorial"
+        class="group flex flex-col p-6 bg-surface rounded-xl border border-amber/30 hover:border-amber/60 transition-colors"
+      >
+        <div class="text-[10px] font-semibold tracking-[0.12em] uppercase text-amber mb-4">
+          Start the tutorial
+        </div>
+        <h2 class="text-base font-semibold text-prose mb-3">Tutorial</h2>
+        <p class="text-sm text-dim leading-relaxed mb-6 flex-1">
+          Build Ab Bekhoor — a Flutter water tracker — from idea to ship,
+          introducing Claude Code features as the project needs them.
+          8&nbsp;chapters, ~3&nbsp;hours.
+        </p>
+        <div class="flex items-end justify-between gap-3">
+          <span class="text-sm text-amber">Begin Chapter 0 →</span>
+          <span class="text-[11px] text-dim text-right leading-snug">New to Claude&nbsp;Code?<br/>Start here.</span>
+        </div>
+      </a>
+
+      <!-- Reference card -->
+      <a
+        href="/reference"
+        class="group flex flex-col p-6 bg-surface rounded-xl border border-rim hover:border-rim-hi transition-colors"
+      >
+        <div class="text-[10px] font-semibold tracking-[0.12em] uppercase text-dim mb-4">
+          Browse the reference
+        </div>
+        <h2 class="text-base font-semibold text-prose mb-3">Reference</h2>
+        <p class="text-sm text-dim leading-relaxed mb-6 flex-1">
+          18 topics across Claude Code, agent craft, and the API.
+          Look up specific features, patterns, and pitfalls.
+          No order required.
+        </p>
+        <div class="flex items-end justify-between gap-3">
+          <span class="text-sm text-dim group-hover:text-prose transition-colors">Open reference →</span>
+          <span class="text-[11px] text-dim text-right leading-snug">Coming back to<br/>look something up?</span>
+        </div>
+      </a>
+
+    </div>
+
   </div>
-
-  <!-- Topic groups -->
-  {nav.map(group => (
-    <section class="mb-10" aria-labelledby={`group-${group.tier}`}>
-
-      <div class="flex items-center gap-2.5 mb-4">
-        <h2 id={`group-${group.tier}`} class="text-xs font-semibold tracking-[0.12em] uppercase text-dim">
-          {group.label}
-        </h2>
-        <span class={`text-[10px] font-mono px-1.5 py-0.5 rounded ${tierMeta[group.tier].badge}`}>
-          {tierMeta[group.tier].label}
-        </span>
-        <span class="text-xs text-dim opacity-60">{tierMeta[group.tier].description}</span>
-      </div>
-
-      <div class={`grid gap-2 ${group.tier === 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'}`}>
-        {group.items.map(item => (
-          <a
-            href={item.href}
-            class="group block p-3.5 bg-surface rounded-lg border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <span class="text-[13px] font-medium text-prose group-hover:text-amber transition-colors leading-snug">
-                {item.title}
-              </span>
-              <svg
-                width="12" height="12"
-                viewBox="0 0 12 12"
-                class="text-dim group-hover:text-amber transition-colors shrink-0 mt-0.5"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <p class="text-[12px] text-dim mt-1.5 leading-snug">
-              {item.summary}
-            </p>
-          </a>
-        ))}
-      </div>
-
-    </section>
-  ))}
-
-  <!-- Footer note -->
-  <div class="mt-12 pt-6 border-t border-rim text-xs text-dim">
-    <p>
-      Feature claims verified against
-      <a href="https://docs.anthropic.com" class="text-amber hover:underline" target="_blank" rel="noopener">docs.anthropic.com</a>.
-      Claude Code features evolve fast — check the docs if something seems off.
-    </p>
-  </div>
-
-</DocLayout>
+</HomeLayout>

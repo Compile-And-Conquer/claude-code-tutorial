@@ -1,0 +1,221 @@
+---
+title: "Building the first feature without surprises"
+subtitle: "Plan mode and slash commands"
+chapter: 2
+recap: "Chapter 1: Ab Bekhoor scaffolded, CLAUDE.md written, project runs. Stack decisions committed. Ready to write the first real feature."
+artifact:
+  filename: "scaffold-feature.md"
+  description: "A /scaffold-feature custom command that enforces plan → approve → implement for any new feature. Drop it at .claude/commands/scaffold-feature.md."
+  path: "/artifacts/chapter-2/scaffold-feature.md"
+refLinks:
+  - href: "/reference/tier1/04-plan-mode"
+    title: "Plan mode"
+  - href: "/reference/tier1/03-slash-commands"
+    title: "Slash commands"
+---
+
+**Plan mode** is the workflow where Claude describes what it's going to do before it does it — files it will create, changes it will make, decisions it's making. You review. You approve or redirect. Then it builds.
+
+The alternative is telling Claude to just implement something and reviewing the diff afterward. That works for small changes. For anything that touches multiple files or multiple layers, it's a reliable way to end up with coherent-looking code that has an incorrect architecture baked in.
+
+---
+
+## The situation
+
+The first real feature for Ab Bekhoor: water intake logging. The home screen needs three tap targets — 250ml, 500ml, and a custom amount — that record an entry and update today's total.
+
+This touches every layer of the project:
+
+- **Data**: A Drift table for `water_entries` (amount, timestamp), a repository with `addEntry()` and `getTodayTotal()`
+- **Domain**: A `WaterEntry` model
+- **Presentation**: `HomeScreen` widget, a Riverpod `AsyncNotifier` for today's total, three tap buttons
+
+If Claude writes all of this at once without a plan, it will make assumptions at every decision point: what the Drift table schema looks like, whether the repository returns a stream or a future, how the Notifier exposes state. Most assumptions will be fine. The one that isn't will cascade through every layer that depends on it.
+
+---
+
+## First attempt (naïve)
+
+```text
+Add the water intake logging feature to the home screen.
+Users should be able to tap 250ml, 500ml, or enter a custom amount.
+Save entries to the database and show today's total.
+```
+
+Claude starts writing. Four files appear in sequence. You watch the diff scroll by. The Drift table looks right. The repository looks right. The Riverpod provider — it's a `FutureProvider`, not an `AsyncNotifier`. CLAUDE.md says `AsyncNotifier pattern` but Claude is mid-implementation writing a provider that fetches one integer, and `FutureProvider` looks locally simpler. It chose the locally reasonable option over the project-wide convention.
+
+Now the HomeScreen widget is built against a `FutureProvider`. Fixing it means touching the provider, the widget, and any other widgets that will eventually use this data. The mistake compounds before you catch it.
+
+---
+
+## Why it falls short
+
+First, the direct answer to why CLAUDE.md didn't prevent the drift:
+
+**CLAUDE.md is read as context, not enforced as rules.** Claude weighs it against everything else it knows — the code it just wrote, the specific file it's currently in, patterns it considers idiomatic Flutter. When Claude is mid-implementation writing a provider that fetches a single integer, `FutureProvider` looks locally reasonable. CLAUDE.md says "AsyncNotifier pattern" but that's a general preference, not a hard constraint. Claude can and does override its own context when local reasoning suggests a different choice.
+
+This is the fundamental limitation of CLAUDE.md: it shifts Claude's defaults, it doesn't lock them. For rules you'd enforce in a code review — "no FutureProvider anywhere in this codebase" — CLAUDE.md is insufficient on its own. The actual enforcement tools are deny rules and hooks, which Chapter 3 covers.
+
+What CLAUDE.md is good for: keeping Claude from inventing missing context entirely (which packages to use, which features are in scope). What it's not good for: preventing Claude from making inline judgment calls that deviate from your conventions.
+
+**The second problem:** Claude Code doesn't ask for permission mid-implementation. It makes reasonable decisions to keep moving. For a three-layer feature, there are six or eight of these decision points. The odds that all of them match your intent exactly — without you having agreed to them upfront — are low.
+
+By the time you see the diff, the code is already written. Redirecting at that point isn't a correction; it's a rewrite.
+
+Plan mode is the fix for the second problem. The plan step forces Claude to surface its intended choices *before* it writes anything — including the choices that would override CLAUDE.md — so you can catch and correct them when it costs nothing.
+
+---
+
+## The fix
+
+Before Claude writes any code, ask it to describe what it's going to do.
+
+**The explicit plan request** is the most reliable approach:
+
+```text
+Before writing any code, plan the water intake logging feature.
+
+List every file you'll create or modify, grouped by layer:
+- Data (Drift tables, repositories)
+- Domain (models)
+- Presentation (widgets, screens, providers)
+
+For each file: what it contains and why it's needed.
+Flag any decisions you're making about schema, return types, or state shape.
+
+Stop and wait for my approval before writing anything.
+```
+
+Claude responds with a structured plan. You read it. You correct anything wrong — "use AsyncNotifier, not FutureProvider" — before a single line of code exists.
+
+Then: "Approved. Implement layer by layer: data first, then domain, then presentation. Pause after each layer."
+
+---
+
+## Step by step
+
+### 1. Write the plan prompt
+
+The plan prompt above works, but adjust it for the feature. For water logging, the critical things to pin down before implementation:
+
+- Drift table schema (columns, types — get this wrong and every query is wrong)
+- Whether the repository returns `Future<List<WaterEntry>>` or `Stream<List<WaterEntry>>` (streams rebuild the UI automatically; futures require manual refresh — pick one consciously)
+- Riverpod provider class: `AsyncNotifier`, not `FutureProvider` (CLAUDE.md says this, but confirm it in the plan)
+
+A good plan response for this feature looks like:
+
+```text
+Files to create/modify:
+
+DATA LAYER
+- lib/database/tables.dart (modify): add WaterEntriesTable
+  columns: id (autoIncrement), amountMl (int), loggedAt (DateTime)
+- lib/database/database.dart (modify): include WaterEntriesTable in @DriftDatabase
+- lib/features/home/data/water_repository.dart (create):
+  WaterRepository with addEntry(int amountMl) and watchTodayTotal() → Stream<int>
+
+DOMAIN LAYER
+- lib/features/home/domain/water_entry.dart (create):
+  WaterEntry model (id, amountMl, loggedAt)
+
+PRESENTATION LAYER
+- lib/features/home/presentation/home_notifier.dart (create):
+  HomeNotifier extends AsyncNotifier<int>, watches today's total via WaterRepository
+- lib/features/home/presentation/home_screen.dart (modify):
+  Add three QuickLogButton widgets, display today's total from HomeNotifier
+
+Decisions I'm making:
+- watchTodayTotal() returns Stream<int> (sum of today's entries in ml)
+- HomeNotifier exposes AsyncValue<int> (handles loading/error states)
+- Custom amount will open a dialog — implementing basic version only
+```
+
+Read this carefully. The decisions section is where Claude tells you what it assumed. If `watchTodayTotal()` returning a `Stream<int>` doesn't match how you want it, correct it now:
+
+```text
+Use Stream<int> for watchTodayTotal — approved.
+But HomeNotifier should expose AsyncValue<int> and have a logWater(int amountMl)
+method that calls the repository and refreshes state. Confirm this is in your plan.
+```
+
+Claude confirms. Then you approve.
+
+### 2. Layer-by-layer implementation
+
+```text
+Approved. Implement the data layer first (tables.dart, database.dart, water_repository.dart).
+Stop after data layer — I'll verify before you continue.
+```
+
+After Claude writes the data layer:
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+flutter analyze lib/database/ lib/features/home/data/
+```
+
+If it's clean, continue:
+
+```text
+Data layer looks good. Implement the domain layer (water_entry.dart).
+```
+
+Then presentation. The pause-after-each-layer discipline prevents cascading errors: a wrong Drift schema is easy to fix before the repository is written against it; it's expensive after.
+
+### 3. Relevant slash commands
+
+Built-in commands you'll use most during feature work:
+
+**`/clear`** — Resets the conversation context. Use this between distinct tasks: after finishing the logging feature, before starting the history chart. A long conversation with unrelated context confuses Claude about scope. `/clear` doesn't delete files; it just clears Claude's memory of the conversation.
+
+**`/model`** — Switch models mid-session. For the planning step (high-judgment, low volume), Opus is worth it. For the implementation step (high volume, lower judgment), Sonnet is faster and cheaper. Switch with `/model claude-opus-4-5` or `/model claude-sonnet-4-5`.
+
+**`/undo`** — Reverts the most recent file change Claude made. Useful when Claude writes something wrong and you want to back up without git. Note: only undoes the last tool call, not a multi-file sequence.
+
+### 4. The scaffold-feature command
+
+The artifact at the bottom of this page is a custom slash command — drop it at `.claude/commands/scaffold-feature.md` in your project root. After that, running `/scaffold-feature` at the start of any feature work triggers the plan prompt automatically.
+
+This is a preview of Chapter 6 (custom commands). The mechanics: any `.md` file in `.claude/commands/` becomes a `/` command. The file content is the prompt Claude runs. Using `/scaffold-feature` instead of typing the plan prompt by hand is the difference between a workflow you'll actually use and one you'll skip when you're in a hurry.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: rubber-stamping the plan without reading it</summary>
+
+The plan step only works if you read it. Claude will write a technically coherent plan that doesn't match your intent — it happens regularly. The `Decisions I'm making` section is where the surprises live. Read that section first. If Claude is making a decision you care about, correct it before approving. "Approved, looks good" on a plan you didn't read is worse than no plan at all: you've now committed to an approach you didn't actually choose.
+</details>
+
+<details>
+<summary>Pitfall: asking for "one small change" mid-implementation</summary>
+
+Once Claude is mid-implementation, breaking to ask for a small change disrupts the coherent pass it's making. Claude will insert the change but may not update related files consistently. Finish the current layer, then request the change. If the change is significant, finish the feature, then start a new session with `/clear` and address it separately.
+</details>
+
+<details>
+<summary>Pitfall: not using /clear between unrelated tasks</summary>
+
+Context from a previous task bleeds into the next one. If you added water logging in this session and now start asking about the history chart, Claude carries assumptions from the logging work — it may use a different data shape than what you want for the chart. `/clear` before each distinct task keeps Claude's assumptions scoped to the work at hand. Your files persist; only the conversation resets.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. A working water intake logging feature: three tap buttons, entries saved to Drift, today's total displayed
+2. A plan-first habit: you approved a written plan before Claude wrote a single file
+3. `scaffold-feature.md` at `.claude/commands/scaffold-feature.md` and working as `/scaffold-feature`
+
+**If the Drift build step fails** (`dart run build_runner build`): the most common cause is a schema change that conflicts with a previous generated file. Run with `--delete-conflicting-outputs` flag. If it still fails, ask Claude to read the error output: `"build_runner is failing — read the error and fix the Drift schema"`.
+
+**If the Riverpod provider throws at runtime**: check that the `HomeNotifier` is using `AsyncNotifier<int>` and not `StateNotifier` or `ChangeNotifier`. CLAUDE.md specifies the pattern; if Claude drifted, correct CLAUDE.md to be more explicit and ask it to fix the provider.
+
+---
+
+## Next
+
+The logging feature works. You approved a plan before Claude wrote anything. In Chapter 3: what happens when Claude doesn't wait for a plan — and how hooks and permissions stop it from doing something you'd have to undo.

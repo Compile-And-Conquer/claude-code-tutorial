@@ -1,0 +1,199 @@
+---
+title: "Two Claudes are better than one"
+subtitle: "Subagents for parallel work"
+chapter: 4
+recap: "Chapter 3: permissions and hooks in place — lib/main.dart protected, pubspec.yaml gated. Claude can no longer go off-script without triggering a block."
+artifact:
+  filename: "reviewer.md + test-writer.md"
+  description: "Subagent definitions for a reviewer (read-only, structured verdict) and a test-writer (writes only to test/**/*_test.dart)."
+  path: "/artifacts/chapter-4/reviewer.md"
+refLinks:
+  - href: "/reference/tier1/05-subagents"
+    title: "Subagents"
+---
+
+One Claude instance implements the streak tracking feature. A second Claude instance — with read-only tool access and no memory of writing the code — reviews it. The reviewer is structurally incapable of being lenient: it can't convince itself the code is fine and quietly fix the problem while reviewing. It can only report.
+
+This is the core use case for subagents: not raw parallelism, but **role separation**. Different tools, different context, different mandate.
+
+---
+
+## The situation
+
+You've built water logging (Ch2) and added guardrails (Ch3). Next feature: streak tracking. A streak is the number of consecutive days the user has hit their daily goal. It requires querying Drift for daily summaries, computing a streak from a sorted list of days, and exposing that count via a Riverpod notifier.
+
+This is the most logic-dense feature so far. It's easy to write code that passes a quick sanity check but gets the streak calculation wrong at edges — the streak resets at midnight, a partial day doesn't count, the first day is day 1 not day 0. These are the kinds of errors a tired implementer misses and a fresh reviewer catches.
+
+You could implement and then review in the same session. The problem is that the same context window that reasoned through the implementation will review it through the same frame. The review won't be independent.
+
+---
+
+## First attempt (naïve)
+
+Implement the streak feature, then ask the same Claude:
+
+```text
+Now review what you just wrote. Check the streak calculation for correctness.
+```
+
+Claude reviews its own code. It finds the parts it's proud of. It glosses over the edge case it didn't think hard about during implementation — the one where a user hits their goal at 11:59 PM but the notification fires at midnight and the app counts tomorrow as day 2, breaking the streak. Claude wrote around this subtly; reviewing with the same context, it reads the code as doing the right thing because that's what it intended.
+
+You ship with the bug.
+
+---
+
+## Why it falls short
+
+An LLM reviewing code it just wrote is not an independent review. The context window contains both the implementation reasoning and the review reasoning. Each informs the other. When the implementation made an assumption, the review is likely to read the code through that same assumption.
+
+This is the same problem human engineers have — you can't effectively review your own PR immediately after writing it. The difference is that Claude can spawn a genuinely fresh instance with no prior context. That instance has never seen this code, never had any stake in writing it, and can't be subtly biased toward approving it.
+
+The second reason to use subagents: **tool isolation as a structural guarantee**. A reviewer with read-only tool access cannot accidentally fix a bug while reviewing — it physically cannot write. The review is honest not just because the context is fresh but because the tool set makes anything other than reviewing impossible.
+
+---
+
+## The fix
+
+Define two subagents with distinct roles and restricted tool access. Orchestrate from your main session: implement with the main instance, review with the reviewer subagent, write tests with the test-writer subagent.
+
+Claude Code spawns subagents using the `Task` tool internally. You invoke this by asking Claude to run a task with a specific agent definition. The agent definitions — `reviewer.md` and `test-writer.md` from this chapter's artifacts — describe the role, rules, and expected output format.
+
+---
+
+## Step by step
+
+### 1. Place the agent definitions
+
+Drop both artifact files from this page into `.claude/agents/`:
+
+```bash
+mkdir -p .claude/agents
+# copy reviewer.md and test-writer.md into .claude/agents/
+```
+
+These files define each agent's role, constraints, and output format. Claude reads them when spawning the agent. The constraints in the file aren't enforcement mechanisms — they're part of the agent's identity, the same way CLAUDE.md describes the project. Actual enforcement comes from the tool permissions you set at spawn time.
+
+### 2. Implement the streak feature (main session)
+
+Use the `/scaffold-feature` command from Chapter 2. Plan first:
+
+```text
+Plan the streak tracking feature.
+
+The streak is the number of consecutive calendar days where the user
+logged at least their daily goal (from settings). Today counts if
+the goal is already hit. The streak resets to 0 if yesterday's goal
+was not met.
+
+List every file you'll create or modify. Flag edge cases in the
+calculation you intend to handle and how.
+```
+
+Approve the plan, implement layer by layer. When the implementation is complete and `flutter analyze` is clean, stop. Don't review yet.
+
+### 3. Run the reviewer subagent
+
+Ask Claude to spawn the reviewer:
+
+```text
+Spawn a subagent using .claude/agents/reviewer.md.
+Give it read-only tool access.
+Ask it to review the streak tracking implementation —
+specifically the calculation logic in the repository and the notifier.
+```
+
+Claude spawns a fresh instance, passes it the reviewer instructions and the relevant files to read, and returns the verdict. The reviewer has no memory of the implementation session. It sees the code as it is, not as it was intended.
+
+A reviewer response that's doing its job looks like this:
+
+```
+VERDICT: REQUEST_CHANGES
+
+ISSUES:
+- [BLOCKING] StreakRepository.calculateStreak() uses DateTime.now() internally
+  to determine "today." This makes the method non-deterministic and untestable.
+  Extract the current date as a parameter: calculateStreak(DateTime today).
+
+- [NON-BLOCKING] StreakNotifier doesn't handle the AsyncError state in the UI —
+  streak display silently shows nothing on error. Add an error state to HomeScreen.
+
+NOTES:
+- The consecutive-day logic correctly handles the midnight boundary by
+  comparing date components, not raw timestamps. Good.
+```
+
+This is the kind of feedback you want: specific, actionable, correctly distinguishing blocking from non-blocking. The blocking issue — `DateTime.now()` baked into the calculation — is exactly the kind of thing the implementer glosses over ("I'll test it manually") and a reviewer should catch.
+
+Fix the blocking issue, re-run the reviewer if the change is significant. Once you have APPROVE, move on.
+
+### 4. Run the test-writer subagent
+
+```text
+Spawn a subagent using .claude/agents/test-writer.md.
+Give it read access to all files and write access only to test/**/*_test.dart.
+Ask it to write tests for the streak repository and notifier,
+with particular attention to the edge cases in the streak calculation.
+```
+
+The test-writer reads the production code and the reviewer's notes (if you pass them), writes tests, and reports coverage gaps. The write restriction to `test/**/*_test.dart` means it cannot touch production code — not as a matter of trust, but as a structural fact.
+
+After the subagent finishes:
+
+```bash
+flutter test test/features/home/
+```
+
+If the reviewer caught a real bug, the tests will surface it. If they pass, the streak implementation is solid.
+
+### 5. When to use subagents vs. a single session
+
+Subagents add overhead — spawning them, passing context, waiting for results. They earn their cost when:
+
+- **The work is independently scoped**: review doesn't need implementation context; test-writing doesn't need review context
+- **Role separation matters**: you want honest review, not self-review
+- **Tool isolation is a guardrail**: reviewer can't write; test-writer can't touch `lib/`
+- **Parallel work is genuinely parallel**: two features that don't touch shared files can be implemented simultaneously
+
+Don't use subagents for small tasks or work that needs tight iteration with the main session. The overhead isn't worth it for a ten-line change.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: an agent definition with no output format</summary>
+
+A reviewer with no output format will write prose. Some of it useful, some of it padding. You can't parse "looks good to me, a few minor style things" into a decision. The structured `VERDICT / ISSUES / NOTES` format in the artifact forces Claude to commit to a verdict and separate blocking from non-blocking issues. Without this structure, reviews are vague and hard to act on.
+</details>
+
+<details>
+<summary>Pitfall: spawning a subagent without restricting its tools</summary>
+
+A "reviewer" subagent with full write access will fix things. It's in the name of its role — if it sees a bug, fixing it feels like reviewing. But now you have two things happening in one pass: review and modification. You lose the independence the subagent was supposed to provide. Always set the tool permissions at spawn time, not just in the agent definition markdown.
+</details>
+
+<details>
+<summary>Pitfall: using subagents to parallelize work that shares state</summary>
+
+Two subagents implementing features that touch the same Drift table or the same Riverpod provider will produce conflicting code. Parallel subagents only work cleanly when their file scope doesn't overlap. For Ab Bekhoor: streak tracking and notification scheduling can be parallel (different files); streak tracking and the streak display widget cannot (the notifier is shared). Map dependencies before splitting work.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. `reviewer.md` and `test-writer.md` in `.claude/agents/`
+2. The streak tracking feature implemented, reviewed (APPROVE verdict), and tested
+3. `flutter test` passing on the streak tests the test-writer produced
+
+**If the reviewer keeps returning vague verdicts:** check that you're passing it the specific files to review, not asking it to review "the whole project." Scope the review to the feature files. Vague scope produces vague output.
+
+**If the test-writer produces tests that fail immediately:** the most common cause is that the production code has `DateTime.now()` or other non-injectable dependencies. The reviewer should have flagged this — if it didn't, your agent definition needs a more explicit rule about testability.
+
+---
+
+## Next
+
+The streak feature is implemented, reviewed, and tested by separate agents with scoped tool access. Chapter 5: Claude can read your code, but it doesn't know what's in your Drift database right now, and it doesn't have access to live Flutter documentation. MCP servers fix both.

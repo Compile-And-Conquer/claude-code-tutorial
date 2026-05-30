@@ -1,0 +1,160 @@
+---
+import DocLayout from './DocLayout.astro';
+import ArticleStyles from '../components/ArticleStyles.astro';
+import { chapters } from '../data/tutorial';
+
+interface RefLink {
+  href: string;
+  title: string;
+}
+
+interface ArtifactMeta {
+  filename: string;
+  description: string;
+  path: string;
+}
+
+interface Props {
+  title: string;
+  subtitle: string;
+  chapter: number;
+  slug: string;
+  recap?: string;
+  artifact?: ArtifactMeta;
+  refLinks?: RefLink[];
+}
+
+const { title, subtitle, chapter, slug, recap, artifact, refLinks } = Astro.props;
+
+const sorted = [...chapters].sort((a, b) => a.chapter - b.chapter);
+const idx   = sorted.findIndex(c => c.slug === slug);
+const prev  = idx > 0 ? sorted[idx - 1] : null;
+const next  = idx < sorted.length - 1 ? sorted[idx + 1] : null;
+
+const tierBadge = {
+  1: 'bg-amber/10 text-amber',
+  2: 'bg-blue-500/10 text-blue-400',
+  3: 'bg-violet-500/10 text-violet-400',
+} as const;
+
+const tierLabel = { 1: 'T1', 2: 'T2', 3: 'T3' } as const;
+const chapterData = chapters.find(c => c.slug === slug);
+---
+
+<DocLayout title={title}>
+
+  <!-- Breadcrumb -->
+  <nav class="flex items-center gap-1.5 text-xs text-dim mb-6" aria-label="Breadcrumb">
+    <a href="/" class="hover:text-prose transition-colors">Home</a>
+    <span aria-hidden="true">›</span>
+    <a href="/tutorial" class="hover:text-prose transition-colors">Tutorial</a>
+    <span aria-hidden="true">›</span>
+    <span class="text-prose">Ch{chapter} — {title}</span>
+  </nav>
+
+  <!-- Chapter header -->
+  <header class="mb-8 pb-6 border-b border-rim">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="font-mono text-[10px] text-dim opacity-40 font-semibold">Ch{String(chapter).padStart(2, '0')}</span>
+      {chapterData && (
+        <span class={`text-[10px] font-mono px-1.5 py-0.5 rounded ${tierBadge[chapterData.tier]}`}>
+          {tierLabel[chapterData.tier]}
+        </span>
+      )}
+    </div>
+    <h1 class="text-lg font-semibold text-prose mb-1.5">{title}</h1>
+    <p class="text-sm text-dim">{subtitle}</p>
+  </header>
+
+  <!-- Where you are banner (if recap provided) -->
+  {recap && (
+    <div class="mb-8 pl-3 border-l-2 border-amber/40">
+      <p class="text-[11px] font-semibold tracking-[0.1em] uppercase text-amber/60 mb-1">Where you are</p>
+      <p class="text-sm text-dim leading-relaxed">{recap}</p>
+    </div>
+  )}
+
+  <!-- Article body -->
+  <article class="article">
+    <slot />
+  </article>
+
+  <!-- Artifact callout -->
+  {artifact && (
+    <div class="mt-10 p-4 rounded-lg border border-amber/25 bg-amber/5">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p class="text-[10px] font-semibold tracking-[0.1em] uppercase text-amber/70 mb-1">Chapter artifact</p>
+          <p class="text-sm font-mono text-prose">{artifact.filename}</p>
+          <p class="text-xs text-dim mt-1">{artifact.description}</p>
+        </div>
+        <a
+          href={artifact.path}
+          target="_blank"
+          rel="noopener"
+          class="shrink-0 text-xs text-amber hover:underline font-mono mt-1"
+        >
+          view raw →
+        </a>
+      </div>
+    </div>
+  )}
+
+  <!-- Go deeper cross-links -->
+  {refLinks && refLinks.length > 0 && (
+    <div class="mt-8">
+      <p class="text-[10px] font-semibold tracking-[0.1em] uppercase text-dim mb-3">Go deeper — reference pages</p>
+      <div class="flex flex-col gap-1.5">
+        {refLinks.map(link => (
+          <a
+            href={link.href}
+            class="group flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
+          >
+            <span class="text-[13px] text-dim group-hover:text-prose transition-colors">{link.title}</span>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" class="shrink-0 text-dim group-hover:text-amber transition-colors">
+              <path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Prev / Next chapter navigation -->
+  {(prev || next) && (
+    <nav class="flex items-center justify-between gap-4 mt-12 pt-6 border-t border-rim" aria-label="Chapter navigation">
+      {prev ? (
+        <a href={`/tutorial/${prev.slug}`} class="group flex flex-col gap-0.5 min-w-0">
+          <span class="text-[10px] text-dim uppercase tracking-widest">Previous</span>
+          <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">← Ch{prev.chapter} {prev.title}</span>
+        </a>
+      ) : <div />}
+      {next ? (
+        <a href={`/tutorial/${next.slug}`} class="group flex flex-col gap-0.5 min-w-0 items-end text-right">
+          <span class="text-[10px] text-dim uppercase tracking-widest">Next</span>
+          <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">Ch{next.chapter} {next.title} →</span>
+        </a>
+      ) : <div />}
+    </nav>
+  )}
+
+</DocLayout>
+
+<ArticleStyles />
+
+<script>
+  document.querySelectorAll('.article pre.astro-code').forEach(pre => {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    pre.appendChild(btn);
+    btn.addEventListener('click', () => {
+      const text = (pre.querySelector('code')?.textContent ?? pre.textContent ?? '').trimEnd();
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'copied';
+        setTimeout(() => { btn.textContent = 'copy'; }, 1800);
+      });
+    });
+  });
+</script>

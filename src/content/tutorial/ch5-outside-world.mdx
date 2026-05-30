@@ -1,0 +1,233 @@
+---
+title: "Giving Claude access to the outside world"
+subtitle: "MCP servers for live docs and DB inspection"
+chapter: 5
+recap: "Chapter 4: streak feature implemented, reviewed by a read-only subagent, tested. The reviewer caught a real bug before it shipped."
+artifact:
+  filename: "mcp.json"
+  description: "Project-level MCP configuration wiring Context7 (live library docs) and SQLite (database inspection) for Ab Bekhoor."
+  path: "/artifacts/chapter-5/mcp.json"
+refLinks:
+  - href: "/reference/tier1/06-mcp-servers"
+    title: "MCP servers"
+---
+
+Claude's training data has a cutoff. Flutter 3.x, Riverpod 2.x, and Drift 2.x all have APIs that changed after that cutoff — sometimes significantly. When Claude writes a Riverpod query or a Drift migration, it's working from what it learned in training, which may not be the current API.
+
+MCP (Model Context Protocol) servers are tools Claude can call during a session to reach outside its training. They're not passive context files — they're live connections. This chapter wires two: one that fetches current documentation, one that reads the actual database the running app produces.
+
+---
+
+## The situation
+
+You're adding weekly history to Ab Bekhoor — a bar chart of the last 7 days. The feature requires a Drift query that aggregates `water_entries` by calendar day and a `fl_chart` widget that renders a `BarChart`.
+
+Two things can go wrong here that Claude can't fix from training data alone:
+
+**Stale API knowledge.** `fl_chart` changes its API between major versions — constructor parameters, data classes, rendering behavior. Claude may write code that was correct for `fl_chart 0.63` but errors on `fl_chart 0.69`. It won't flag the discrepancy because it doesn't know the current version.
+
+**Invisible runtime state.** When the chart doesn't render what you expect, the question is: does the Drift query return wrong data, or does the chart widget get the right data and render it wrong? Without seeing the actual query results, you're guessing. Claude can read the code, but it can't see what's in the database.
+
+---
+
+## First attempt (naïve)
+
+Ask Claude to implement the weekly chart. It writes the `fl_chart` widget, the Drift aggregation query, the Riverpod notifier. It compiles. You run it. The chart renders but shows wrong bar heights — Monday and Tuesday are swapped.
+
+```text
+The weekly chart is rendering Monday and Tuesday swapped.
+Read the WeeklyHistoryRepository and figure out what's wrong.
+```
+
+Claude reads the repository. The query looks plausible. Claude reasons through the logic. It suggests the issue might be timezone handling in the date grouping, and rewrites the query using a different approach. Same result.
+
+The actual problem: the database has three entries for Tuesday and zero for Monday, and the chart widget is sorting by insertion order rather than by date. But Claude is reasoning about what the data *should* look like, not what it *actually* contains. Without seeing the real rows, it's guessing.
+
+---
+
+## Why it falls short
+
+Two separate problems:
+
+**Claude can't check what it doesn't know it doesn't know.** If `fl_chart 0.69` changed the `BarChartGroupData` constructor, Claude doesn't know that the API it's confidently using is wrong. It will write valid-looking code that fails at runtime with a confusing error.
+
+**Reading code is not the same as reading state.** A Drift query that looks correct in isolation may produce unexpected results with real data — timezone edge cases, unexpected nulls from incomplete onboarding, entries logged at exactly midnight. Claude can analyze the query logic but it can't see the actual rows the query returns against your real database.
+
+Both problems have the same root: Claude is working from a static picture (training data, source files) when the answer lives in something dynamic (current library APIs, runtime database contents).
+
+---
+
+## The fix
+
+Two MCP servers, each solving one problem:
+
+**Context7** — fetches current, version-specific documentation for any library Claude is working with. When Claude is about to use a `fl_chart` API, it queries Context7 first and gets the actual current constructor signatures, not the ones from training.
+
+**SQLite MCP** — gives Claude read access to the app's SQLite database file. When the chart is wrong, Claude can run the actual query against the real database and see exactly what rows are present — not infer them from the code.
+
+---
+
+## Step by step
+
+### 1. Configure the MCP servers
+
+Drop the `mcp.json` artifact from this page into your project root as `.mcp.json`:
+
+```bash
+cp mcp.json .mcp.json
+```
+
+The configuration wires two servers:
+
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./dev.db"]
+    }
+  }
+}
+```
+
+Both servers run via `npx` — no global install needed. On first use, npx downloads the package. Subsequent uses hit the cache.
+
+Verify the setup before starting a real session:
+
+```bash
+claude mcp list
+```
+
+Both servers should appear. If they don't, check that `.mcp.json` is valid JSON (`python3 -m json.tool .mcp.json`) and that you're running `claude` from the project root.
+
+### 2. Point the SQLite server at your development database
+
+The `--db-path ./dev.db` in the config assumes you've configured Drift to write to a known path during development. Production Flutter apps store the database in the platform's documents directory — not accessible at a fixed relative path.
+
+Add a development override in your Drift setup:
+
+```dart
+// lib/database/database.dart
+import 'dart:io';
+import 'package:drift/native.dart';
+
+LazyDatabase _openDatabase() {
+  return LazyDatabase(() async {
+    // In development, write to a fixed path the MCP server can find
+    if (const bool.fromEnvironment('DRIFT_DEV_DB', defaultValue: false)) {
+      return NativeDatabase(File('dev.db'));
+    }
+    // Production: use the platform path
+    final dbFolder = await getApplicationDocumentsDirectory();
+    return NativeDatabase(File('${dbFolder.path}/ab_bekhoor.db'));
+  });
+}
+```
+
+Run with the flag during development:
+
+```bash
+flutter run --dart-define=DRIFT_DEV_DB=true
+```
+
+Now `dev.db` appears in the project root, and the SQLite MCP server can read it. Never commit `dev.db` to git — add it to `.gitignore`.
+
+<Callout type="tip">
+The `DRIFT_DEV_DB` flag approach keeps production and development database paths separate without build flavors. The same binary, different behavior depending on the compile-time constant.
+</Callout>
+
+### 3. Use Context7 for current API documentation
+
+When working with any library that moves fast — `fl_chart`, `flutter_local_notifications`, Riverpod — tell Claude to consult Context7 before writing:
+
+```text
+Before writing the fl_chart widget, use Context7 to get the current
+API for BarChart, BarChartGroupData, and BarChartRodData in fl_chart.
+Then implement the weekly history chart using the current API.
+```
+
+Claude queries Context7, gets the current constructor signatures and any migration notes, and writes code against the actual installed version. The generated code won't have "that was valid in 0.63 but deprecated in 0.67" problems.
+
+You don't need to prefix every prompt with "check Context7 first." Do it when:
+- Starting work with a library you haven't used in this session yet
+- The library has had recent major version bumps
+- Claude produces code that compiles but behaves unexpectedly (runtime API mismatch)
+
+### 4. Use the SQLite server for debugging runtime state
+
+When behavior doesn't match expectations and code inspection isn't finding it, ask Claude to look at the actual data:
+
+```text
+The weekly history chart is showing wrong values for Monday.
+Use the SQLite MCP to query the water_entries table directly:
+SELECT date(logged_at, 'localtime') as day, SUM(amount_ml) as total
+FROM water_entries
+WHERE logged_at >= date('now', '-7 days')
+GROUP BY day
+ORDER BY day;
+
+Show me the actual results.
+```
+
+Claude runs the query against `dev.db` and returns real rows. Now instead of reasoning about what the data might contain, you both see exactly what's there. If Monday has zero entries and Tuesday has three, the chart rendering is correct and the problem is something else (maybe the test device's date is wrong, or the daily goal wasn't set). If Monday has three entries and the chart shows two, the query aggregation is the bug.
+
+The SQLite server can also inspect the schema directly — useful after a migration:
+
+```text
+Use the SQLite MCP to show me the current schema: .schema
+```
+
+Claude returns the actual CREATE TABLE statements from the database, not from the Drift source. If a migration didn't run, the discrepancy shows up immediately.
+
+### 5. When NOT to use MCP servers
+
+MCP servers add a round-trip. For every Context7 query, Claude waits for the network response before continuing. For every SQLite query, it reads from disk. In a session where you're doing straightforward work with stable APIs, these delays are noise.
+
+Use Context7 when the library version matters and you're uncertain Claude's training data is current. Use the SQLite MCP when you're debugging a mismatch between code and runtime behavior. Don't add MCP round-trips to every prompt as a default — Claude's training data is correct for the vast majority of what you'll write. MCP servers cover the gaps; they don't replace the training.
+
+---
+
+## Pitfalls
+
+<details>
+<summary>Pitfall: MCP server fails silently and Claude falls back to training data</summary>
+
+If Context7 is unreachable (network issue, npx cache miss), Claude doesn't error — it just uses its training data as if Context7 wasn't configured. You can't always tell which source Claude used. To verify: ask Claude explicitly at the start of the session, "check Context7 for the current fl_chart version." If it returns a version number, the server is working. If it can't connect, you'll see an error and know to fix the config before proceeding.
+</details>
+
+<details>
+<summary>Pitfall: forgetting the DRIFT_DEV_DB flag and wondering why dev.db is empty</summary>
+
+If you run `flutter run` without `--dart-define=DRIFT_DEV_DB=true`, the app writes to the platform documents directory and `dev.db` stays empty (or contains stale data from the last dev run). The SQLite MCP will report zero rows for everything. Add the flag to your launch configuration in your IDE, or set an alias: `alias flutter-dev='flutter run --dart-define=DRIFT_DEV_DB=true'`.
+</details>
+
+<details>
+<summary>Pitfall: the SQLite MCP having stale data from a previous session</summary>
+
+`dev.db` persists between runs. If you ran the app last Tuesday and haven't run it since, the database reflects Tuesday's state. When Claude queries it, it's not seeing current data — it's seeing a snapshot. Before a debugging session that depends on current database state, run the app fresh on the simulator (`flutter run --dart-define=DRIFT_DEV_DB=true`) and reproduce the issue, then inspect with the MCP.
+</details>
+
+---
+
+## Checkpoint
+
+By the end of this chapter you should have:
+
+1. `.mcp.json` at the project root, both servers listed in `claude mcp list`
+2. The `DRIFT_DEV_DB` compile flag wired in your Drift setup, with `dev.db` appearing in the project root when the flag is active
+3. `dev.db` in `.gitignore`
+4. The weekly history chart implemented using Context7-verified `fl_chart` API
+
+**If `claude mcp list` shows no servers:** confirm `.mcp.json` is valid JSON, in the project root (not `.claude/mcp.json`), and that you restarted the Claude session after adding it.
+
+**If SQLite queries return "no such table":** the database was created with the `DRIFT_DEV_DB=false` path. Delete `dev.db`, run the app with the flag set, let Drift recreate the schema, then try the query again.
+
+---
+
+## Next
+
+Claude can now see current documentation and query the live database. Chapter 6: automating the repetitive parts — custom commands so the workflows you've built across chapters 1–5 run with a single keystroke, and headless mode so Claude Code can run in CI without you watching.

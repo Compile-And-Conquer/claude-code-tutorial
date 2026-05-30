@@ -1,0 +1,76 @@
+---
+import DocLayout from '../../layouts/DocLayout.astro';
+import { chapters } from '../../data/tutorial';
+
+const tierBadge = {
+  1: 'bg-amber/10 text-amber',
+  2: 'bg-blue-500/10 text-blue-400',
+  3: 'bg-violet-500/10 text-violet-400',
+} as const;
+
+const tierLabel = { 1: 'T1', 2: 'T2', 3: 'T3' } as const;
+---
+
+<DocLayout title="Tutorial">
+
+  <!-- Header -->
+  <div class="mb-10 pb-8 border-b border-rim">
+    <h1 class="text-xl font-semibold text-prose mb-3">Tutorial</h1>
+    <p class="text-dim text-sm leading-relaxed max-w-[60ch]">
+      Build <strong class="text-prose font-medium">Ab Bekhoor</strong> — a Flutter water tracker — from idea to ship,
+      using Claude Code for every step. Each chapter introduces features as the project needs them.
+    </p>
+    <div class="flex flex-wrap items-center gap-4 mt-5 text-xs text-dim">
+      <span>8 chapters</span>
+      <span class="w-1 h-1 rounded-full bg-dim opacity-40"></span>
+      <span>~3 hours</span>
+      <span class="w-1 h-1 rounded-full bg-dim opacity-40"></span>
+      <span>Flutter + Claude Code</span>
+    </div>
+  </div>
+
+  <!-- Chapter list -->
+  <ol class="flex flex-col gap-2" role="list">
+    {chapters.map(ch => (
+      <li>
+        <a
+          href={`/tutorial/${ch.slug}`}
+          class="group flex items-start gap-4 p-4 bg-surface rounded-lg border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
+        >
+          <!-- Chapter number -->
+          <span class="shrink-0 font-mono text-2xl font-semibold text-dim opacity-25 leading-none mt-0.5 w-6 text-right">
+            {ch.chapter}
+          </span>
+
+          <!-- Content -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[13px] font-medium text-prose group-hover:text-amber transition-colors leading-snug">
+                {ch.title}
+              </span>
+              <span class={`shrink-0 text-[9px] font-mono px-1.5 py-0.5 rounded ${tierBadge[ch.tier]}`}>
+                {tierLabel[ch.tier]}
+              </span>
+            </div>
+            <p class="text-[12px] text-dim leading-snug">{ch.subtitle}</p>
+            {ch.artifact && (
+              <p class="text-[11px] font-mono text-dim opacity-50 mt-1.5">↳ {ch.artifact}</p>
+            )}
+          </div>
+
+          <!-- Arrow -->
+          <svg
+            width="12" height="12"
+            viewBox="0 0 12 12"
+            class="shrink-0 text-dim group-hover:text-amber transition-colors mt-1"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </li>
+    ))}
+  </ol>
+
+</DocLayout>

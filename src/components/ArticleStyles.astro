@@ -1,0 +1,184 @@
+<style is:global>
+  /* ── Article typography ─────────────────────────────────── */
+  .article { font-size: 0.875rem; line-height: 1.75; }
+
+  .article h2 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #e8ecf0;
+    margin-top: 2rem;
+    margin-bottom: 0.625rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #252830;
+  }
+
+  .article h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #d4d8de;
+    margin-top: 1.375rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .article h4 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #d4d8de;
+    margin-top: 1rem;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .article p { color: #d4d8de; margin-bottom: 0.875rem; }
+
+  .article strong { color: #e8ecf0; font-weight: 600; }
+  .article em     { color: #a0a8b4; font-style: italic; }
+
+  .article a {
+    color: #e0823a;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: #e0823a40;
+  }
+  .article a:hover { text-decoration-color: #e0823a; }
+
+  .article code:not(pre code) {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    background: #1a1d22;
+    color: #d4d8de;
+    padding: 0.1em 0.35em;
+    border-radius: 0.2rem;
+    border: 1px solid #252830;
+  }
+
+  /* Target only Shiki-generated blocks; PromptBlock uses plain <pre> */
+  .article pre.astro-code {
+    border: 1px solid #252830;
+    border-radius: 0.5rem;
+    padding: 1rem 1.125rem;
+    overflow-x: auto;
+    margin-bottom: 1.25rem;
+    position: relative;
+  }
+
+  .article pre.astro-code code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  .article ul, .article ol {
+    padding-left: 1.375rem;
+    margin-bottom: 0.875rem;
+  }
+  .article ul { list-style-type: disc; }
+  .article ol { list-style-type: decimal; }
+  .article li { color: #d4d8de; margin-bottom: 0.3rem; }
+  .article li > p { margin-bottom: 0.3rem; }
+  .article li > code { font-size: 0.8em; }
+
+  .article blockquote {
+    border-left: 3px solid #252830;
+    padding: 0.25rem 1rem;
+    margin: 1.25rem 0;
+    color: #717882;
+  }
+
+  .article hr {
+    border: none;
+    border-top: 1px solid #252830;
+    margin: 2rem 0;
+  }
+
+  /* ── Native <details> for Common pitfall boxes ─────────── */
+  .article details {
+    border: 1px solid rgba(201,79,79,0.25);
+    background: rgba(201,79,79,0.04);
+    border-radius: 0.5rem;
+    margin: 1.5rem 0;
+    overflow: hidden;
+  }
+
+  .article details summary {
+    padding: 0.75rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #c94f4f;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .article details summary::-webkit-details-marker { display: none; }
+  .article details summary::before {
+    content: '▶';
+    font-size: 0.55rem;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .article details[open] summary::before { transform: rotate(90deg); }
+
+  .article details > *:not(summary) {
+    padding: 0 1rem 0.875rem;
+    font-size: 0.8125rem;
+    color: #d4d8de;
+  }
+  .article details > p:first-of-type { padding-top: 0.25rem; }
+
+  /* ── Tables ─────────────────────────────────────────────── */
+  .article table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .article thead tr {
+    border-bottom: 1px solid #343840;
+  }
+
+  .article th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: #717882;
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .article td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #1e2124;
+    color: #d4d8de;
+    vertical-align: top;
+  }
+
+  .article td:first-child { color: #e8ecf0; font-family: 'JetBrains Mono', monospace; font-size: 0.8em; }
+
+  /* ── Copy button (injected via JS) ──────────────────────── */
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    color: #717882;
+    background: #252830;
+    border: 1px solid #343840;
+    border-radius: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    line-height: 1.5;
+    transition: color 0.1s, background 0.1s;
+  }
+  .copy-btn:hover { color: #d4d8de; background: #343840; }
+  .copy-btn:focus-visible { outline: 1px solid #e0823a; outline-offset: 1px; }
+</style>

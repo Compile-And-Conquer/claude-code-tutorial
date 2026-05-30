@@ -1,18 +1,63 @@
 ---
 import { nav, tierMeta } from '../data/nav';
+import { chapters } from '../data/tutorial';
 
 interface Props {
   currentPath: string;
+  mode: 'tutorial' | 'reference';
 }
-const { currentPath } = Astro.props;
+const { currentPath, mode } = Astro.props;
 
 function isActive(href: string): boolean {
   return currentPath === href || currentPath === href + '/';
 }
 ---
 
-<nav class="p-3 pb-8" aria-label="Topics">
-  {nav.map(group => (
+<nav class="p-3 pb-8" aria-label={mode === 'tutorial' ? 'Tutorial chapters' : 'Reference topics'}>
+
+  <!-- Mode switch link -->
+  <div class="mb-5 px-2">
+    {mode === 'tutorial' ? (
+      <a href="/reference" class="flex items-center gap-1.5 text-[11px] text-dim hover:text-prose transition-colors">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M6 2L3 5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Reference
+      </a>
+    ) : (
+      <a href="/tutorial" class="flex items-center gap-1.5 text-[11px] text-dim hover:text-prose transition-colors">
+        Tutorial
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M4 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    )}
+  </div>
+
+  {mode === 'tutorial' && (
+    <ul role="list">
+      {chapters.map(ch => (
+        <li>
+          <a
+            href={`/tutorial/${ch.slug}`}
+            class={`flex items-start gap-2.5 px-2 py-2 text-[13px] rounded transition-colors leading-snug ${
+              isActive(`/tutorial/${ch.slug}`)
+                ? 'bg-amber/10 text-amber font-medium'
+                : 'text-dim hover:text-prose hover:bg-surface-hi'
+            }`}
+            aria-current={isActive(`/tutorial/${ch.slug}`) ? 'page' : undefined}
+          >
+            <span class={`shrink-0 font-mono text-[10px] mt-0.5 w-4 text-right ${
+              isActive(`/tutorial/${ch.slug}`) ? 'text-amber' : 'text-dim opacity-50'
+            }`}>{ch.chapter}</span>
+            <span>{ch.title}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {mode === 'reference' && nav.map(group => (
     <div class="mb-7">
       <div class="flex items-center gap-2 px-2 mb-1.5">
         <span class="text-[10px] font-semibold tracking-[0.12em] uppercase text-dim">
@@ -41,4 +86,5 @@ function isActive(href: string): boolean {
       </ul>
     </div>
   ))}
+
 </nav>

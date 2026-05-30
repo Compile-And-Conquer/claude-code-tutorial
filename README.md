@@ -1,6 +1,9 @@
 # Claude Dev Guide
 
-Opinionated reference for developers building side projects with Claude. Deepest coverage on Claude Code — automation, agent guardrailing, and keeping sessions from going off the rails.
+Opinionated field guide for developers building side projects with Claude. Two modes:
+
+- **Tutorial** — 8 chapters building Ab Bekhoor (a Flutter water tracker) from idea to App Store. Introduces Claude Code features as the project needs them.
+- **Reference** — 18 topics across Claude Code, agent craft, and the API. No order required.
 
 ## Run locally
 
@@ -28,7 +31,19 @@ The site outputs static HTML. No server required.
 
 **Cloudflare Pages:** Connect repo. Build command: `npm run build`. Output directory: `dist`.
 
-## Add a new topic page
+## Site structure
+
+```
+/                       Two-path landing (Tutorial vs Reference)
+/tutorial               Chapter timeline
+/tutorial/[slug]        Individual chapter pages
+/reference              Reference topic grid
+/reference/tier1/[slug] Reference topic pages
+/reference/tier2/[slug]
+/reference/tier3/[slug]
+```
+
+## Add a new reference page
 
 1. Create a content file:
 
@@ -49,17 +64,51 @@ summary: "One sentence shown in sidebar and index cards."
 ---
 ```
 
-3. Add to the nav in `src/data/nav.ts`:
+3. Add to nav in `src/data/nav.ts`:
 
 ```ts
-{ href: '/tier1/NN-slug', title: 'Topic title', summary: '...', tier: 1, order: 19 }
+{ href: '/reference/tier1/NN-slug', title: 'Topic title', summary: '...', tier: 1, order: 19 }
 ```
 
-4. The dynamic route `src/pages/tier{N}/[slug].astro` picks it up automatically.
+4. If the topic maps to a tutorial chapter, add it to `refToChapter` in `src/data/tutorial.ts`.
+
+5. The dynamic route `src/pages/reference/tier{N}/[slug].astro` picks it up automatically.
+
+## Add a new tutorial chapter
+
+1. Create a content file:
+
+```
+src/content/tutorial/chN-slug.mdx
+```
+
+2. Add frontmatter:
+
+```yaml
+---
+title: "Chapter title"
+subtitle: "Feature being taught"
+chapter: 8         # next chapter number
+recap: "Two-sentence 'where you are' shown as a banner."
+artifact:          # optional
+  filename: "something.md"
+  description: "What this file is."
+  path: "/artifacts/chapter-8/something.md"
+refLinks:          # optional — links to reference pages
+  - href: "/reference/tier1/01-setup"
+    title: "Setup & first steps"
+---
+```
+
+3. Add to `src/data/tutorial.ts` chapters array.
+
+4. Place any artifact files at `public/artifacts/chapter-N/`.
+
+5. The dynamic route `src/pages/tutorial/[slug].astro` picks it up automatically.
 
 ## Content structure
 
-Every article follows this template:
+**Reference articles** follow this template:
 
 ```mdx
 **[Title]** — one-line definition.
@@ -74,7 +123,21 @@ Explanation and fix.
 </details>
 ```
 
-Available MDX components (no import needed — they're passed via `components` prop):
+**Tutorial chapters** follow this 9-section flow:
+
+```
+Where you are   (frontmatter recap — rendered as banner)
+The situation
+First attempt (naïve)
+Why it falls short
+The fix
+Step by step
+Pitfalls        (<details> collapsibles)
+Checkpoint
+Next
+```
+
+Available MDX components (no import needed):
 - `<Callout type="tip|warning|pitfall">` — highlighted info box
 - `<PromptBlock>` — styled, copyable prompt template
 
