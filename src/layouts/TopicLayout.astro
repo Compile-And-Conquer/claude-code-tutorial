@@ -5,6 +5,7 @@ import { refToChapter } from '../data/tutorial';
 import Callout from '../components/Callout.astro';
 import PromptBlock from '../components/PromptBlock.astro';
 import ArticleStyles from '../components/ArticleStyles.astro';
+import { u } from '../utils/url';
 
 interface Props {
   title: string;
@@ -43,9 +44,9 @@ const groupLabel = {
 
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-1.5 text-xs text-dim mb-6" aria-label="Breadcrumb">
-    <a href="/" class="hover:text-prose transition-colors">Home</a>
+    <a href={u("/")} class="hover:text-prose transition-colors">Home</a>
     <span aria-hidden="true">›</span>
-    <a href="/reference" class="hover:text-prose transition-colors">Reference</a>
+    <a href={u("/reference")} class="hover:text-prose transition-colors">Reference</a>
     <span aria-hidden="true">›</span>
     <span>{groupLabel[collection]}</span>
     <span aria-hidden="true">›</span>
@@ -60,7 +61,7 @@ const groupLabel = {
       </svg>
       <span>
         Learning from scratch? This concept is introduced in
-        <a href={`/tutorial/${tutorialLink.slug}`} class="text-amber hover:underline font-medium">
+        <a href={u(`/tutorial/${tutorialLink.slug}`)} class="text-amber hover:underline font-medium">
           Chapter {tutorialLink.chapter}: {tutorialLink.title} →
         </a>
       </span>
@@ -88,13 +89,13 @@ const groupLabel = {
   {(prev || next) && (
     <nav class="flex items-center justify-between gap-4 mt-12 pt-6 border-t border-rim" aria-label="Topic navigation">
       {prev ? (
-        <a href={prev.href} class="group flex flex-col gap-0.5 min-w-0">
+        <a href={u(prev.href)} class="group flex flex-col gap-0.5 min-w-0">
           <span class="text-[10px] text-dim uppercase tracking-widest">Previous</span>
           <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">← {prev.title}</span>
         </a>
       ) : <div />}
       {next ? (
-        <a href={next.href} class="group flex flex-col gap-0.5 min-w-0 items-end text-right">
+        <a href={u(next.href)} class="group flex flex-col gap-0.5 min-w-0 items-end text-right">
           <span class="text-[10px] text-dim uppercase tracking-widest">Next</span>
           <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">{next.title} →</span>
         </a>

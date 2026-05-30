@@ -1,6 +1,7 @@
 ---
 import DocLayout from '../../layouts/DocLayout.astro';
 import { nav, tierMeta } from '../../data/nav';
+import { u } from '../../utils/url';
 ---
 
 <DocLayout title="Reference">
@@ -47,7 +48,7 @@ import { nav, tierMeta } from '../../data/nav';
       <div class={`grid gap-2 ${group.tier === 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'}`}>
         {group.items.map(item => (
           <a
-            href={item.href}
+            href={u(item.href)}
             class="group block p-3.5 bg-surface rounded-lg border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
           >
             <div class="flex items-start justify-between gap-2">

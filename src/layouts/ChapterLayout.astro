@@ -2,6 +2,7 @@
 import DocLayout from './DocLayout.astro';
 import ArticleStyles from '../components/ArticleStyles.astro';
 import { chapters } from '../data/tutorial';
+import { u } from '../utils/url';
 
 interface RefLink {
   href: string;
@@ -45,9 +46,9 @@ const chapterData = chapters.find(c => c.slug === slug);
 
   <!-- Breadcrumb -->
   <nav class="flex items-center gap-1.5 text-xs text-dim mb-6" aria-label="Breadcrumb">
-    <a href="/" class="hover:text-prose transition-colors">Home</a>
+    <a href={u("/")} class="hover:text-prose transition-colors">Home</a>
     <span aria-hidden="true">›</span>
-    <a href="/tutorial" class="hover:text-prose transition-colors">Tutorial</a>
+    <a href={u("/tutorial")} class="hover:text-prose transition-colors">Tutorial</a>
     <span aria-hidden="true">›</span>
     <span class="text-prose">Ch{chapter} — {title}</span>
   </nav>
@@ -89,7 +90,7 @@ const chapterData = chapters.find(c => c.slug === slug);
           <p class="text-xs text-dim mt-1">{artifact.description}</p>
         </div>
         <a
-          href={artifact.path}
+          href={u(artifact.path)}
           target="_blank"
           rel="noopener"
           class="shrink-0 text-xs text-amber hover:underline font-mono mt-1"
@@ -107,7 +108,7 @@ const chapterData = chapters.find(c => c.slug === slug);
       <div class="flex flex-col gap-1.5">
         {refLinks.map(link => (
           <a
-            href={link.href}
+            href={u(link.href)}
             class="group flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
           >
             <span class="text-[13px] text-dim group-hover:text-prose transition-colors">{link.title}</span>
@@ -124,13 +125,13 @@ const chapterData = chapters.find(c => c.slug === slug);
   {(prev || next) && (
     <nav class="flex items-center justify-between gap-4 mt-12 pt-6 border-t border-rim" aria-label="Chapter navigation">
       {prev ? (
-        <a href={`/tutorial/${prev.slug}`} class="group flex flex-col gap-0.5 min-w-0">
+        <a href={u(`/tutorial/${prev.slug}`)} class="group flex flex-col gap-0.5 min-w-0">
           <span class="text-[10px] text-dim uppercase tracking-widest">Previous</span>
           <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">← Ch{prev.chapter} {prev.title}</span>
         </a>
       ) : <div />}
       {next ? (
-        <a href={`/tutorial/${next.slug}`} class="group flex flex-col gap-0.5 min-w-0 items-end text-right">
+        <a href={u(`/tutorial/${next.slug}`)} class="group flex flex-col gap-0.5 min-w-0 items-end text-right">
           <span class="text-[10px] text-dim uppercase tracking-widest">Next</span>
           <span class="text-sm text-dim group-hover:text-amber transition-colors truncate">Ch{next.chapter} {next.title} →</span>
         </a>

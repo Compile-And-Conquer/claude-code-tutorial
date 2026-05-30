@@ -1,5 +1,6 @@
 ---
 import HomeLayout from '../layouts/HomeLayout.astro';
+import { u } from '../utils/url';
 ---
 
 <HomeLayout title="Claude Dev Guide">
@@ -16,7 +17,7 @@ import HomeLayout from '../layouts/HomeLayout.astro';
 
       <!-- Tutorial card -->
       <a
-        href="/tutorial"
+        href={u("/tutorial")}
         class="group flex flex-col p-6 bg-surface rounded-xl border border-amber/30 hover:border-amber/60 transition-colors"
       >
         <div class="text-[10px] font-semibold tracking-[0.12em] uppercase text-amber mb-4">
@@ -36,7 +37,7 @@ import HomeLayout from '../layouts/HomeLayout.astro';
 
       <!-- Reference card -->
       <a
-        href="/reference"
+        href={u("/reference")}
         class="group flex flex-col p-6 bg-surface rounded-xl border border-rim hover:border-rim-hi transition-colors"
       >
         <div class="text-[10px] font-semibold tracking-[0.12em] uppercase text-dim mb-4">

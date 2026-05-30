@@ -1,6 +1,7 @@
 ---
 import DocLayout from '../../layouts/DocLayout.astro';
 import { chapters } from '../../data/tutorial';
+import { u } from '../../utils/url';
 
 const tierBadge = {
   1: 'bg-amber/10 text-amber',
@@ -34,7 +35,7 @@ const tierLabel = { 1: 'T1', 2: 'T2', 3: 'T3' } as const;
     {chapters.map(ch => (
       <li>
         <a
-          href={`/tutorial/${ch.slug}`}
+          href={u(`/tutorial/${ch.slug}`)}
           class="group flex items-start gap-4 p-4 bg-surface rounded-lg border border-rim hover:border-rim-hi hover:bg-surface-hi transition-colors"
         >
           <!-- Chapter number -->
