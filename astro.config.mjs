@@ -5,6 +5,5 @@ import mdx from '@astrojs/mdx';
 export default defineConfig({
   integrations: [tailwind(), mdx()],
   output: 'static',
-  site: 'https://compile-and-conquer.github.io',
-  base: '/claude-code-tutorial.github.io',
+  site: 'https://claude-code-tutorial.github.io',
 });
