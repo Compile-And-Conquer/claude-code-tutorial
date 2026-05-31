@@ -22,7 +22,7 @@ You have a water tracker idea. The App Store has dozens of them. You could spend
 
 The goal isn't to confirm the idea is good. It's to find out: is there a specific gap the competitors aren't filling? If yes, what is it? If no, you move on.
 
-For Ab Bekhoor, there's a hypothesis worth testing: most water trackers are identical, and no one is building for the specific use case of active adults who want dead-simple logging with no friction.
+For Ab Bekhoor, one hypothesis worth testing: existing water trackers may over-serve users who want dashboards, badges, and social features, while under-serving people who want fast, low-friction daily logging. The research might confirm this — or surface a better segment entirely.
 
 ---
 
@@ -56,6 +56,8 @@ Research mode is available on claude.ai Pro and Max plans. You're not writing co
 **What it can't reliably give you:**
 - Real-time App Store rankings and download numbers (verify these directly in the App Store)
 - Certainty — it gives you signal, not proof
+
+Evidence quality matters. Research mode is strongest at surfacing repeated patterns across reviews — specific complaints that appear in multiple apps. It's weaker on recency (rankings shift, apps get updated) and anything requiring hands-on use. Weight review patterns heavily; treat anything about rankings or download numbers as a starting point to verify yourself.
 
 ---
 
@@ -100,18 +102,39 @@ Based on the competitor research above:
    What's the threshold?
 ```
 
+**What a weak gap looks like versus a strong one:**
+
+| Weak | Strong |
+|---|---|
+| "Existing apps are cluttered" | "Users who just want to log 250/500 ml complain about too many taps to reach the input screen" |
+| "Notifications are bad" | "Reviews mention reminders that are either too aggressive or impossible to snooze — no middle ground" |
+| "People want a cleaner app" | "Users who already know their daily goal want passive tracking, not coaching or gamification" |
+
+A gap you can't express in terms of a specific user complaint isn't a gap yet.
+
+---
+
 ### 3. The build/don't-build decision
 
 After the gap analysis, make a decision with this framework. You're looking for **one specific, defensible answer** to: "Who is underserved, and why?"
 
-For Ab Bekhoor, the Research mode output would likely surface that:
+A useful research result for Ab Bekhoor might look like this:
 - Most apps over-gamify (streaks, badges, social) — users who want dead-simple logging complain about this
 - Notification UX is almost universally bad — too aggressive or too easy to ignore
 - "Set it and forget it" users (log once in the morning, set a goal, done) aren't who existing apps are optimized for
 
-That's enough signal to proceed. You have a specific angle: minimal, no-friction logging for people who just want to hit a daily goal without an app that nags them.
+That's the structure of an acceptable signal, not a guaranteed outcome. Your research might surface a different segment — or confirm this one. Either is useful.
 
-If Research mode surfaces a well-rated app that already occupies this exact positioning, reconsider before building.
+Use this scorecard to make the call:
+
+| Question | Proceed | Pause or kill |
+|---|---|---|
+| Is there demand? | Many apps, active reviews, people already tracking | Few active apps, low review volume |
+| Is there dissatisfaction? | Repeated complaints across multiple apps | Users mostly satisfied |
+| Is the gap specific? | "Users want one-tap logging without gamification" | "People want better UX" |
+| Can a solo builder address it? | Gap is product/UX-focused | Requires clinical credibility or integrations |
+| Is the MVP small? | Buildable in weeks | Needs many features before it's useful |
+| Would someone switch? | Pain is frequent and annoying | Existing apps are good enough |
 
 ### 4. ICP definition before writing code
 
@@ -146,6 +169,20 @@ Research mode will find evidence for whatever angle you give it. If you ask "wha
 <summary>Pitfall: skipping the ICP step and going straight to code</summary>
 
 Without a defined ICP, CLAUDE.md becomes vague ("build a clean water tracker") and Claude will fill in the blanks with generic assumptions. Spending 10 minutes on the ICP now shapes every prompt you write for the next 7 chapters — Claude knows who it's building for.
+</details>
+
+<details>
+<summary>Pitfall: finding a gap but ignoring the kill criteria</summary>
+
+Stop before building if:
+
+- The positioning you identified already exists and has strong reviews
+- Complaints are about things your MVP can't fix (pricing, ads, deep integrations)
+- The only gap you can name is vague — "better design," "cleaner UI"
+- You can't describe the switching reason in one sentence
+- The ICP requires clinical credibility, hardware, or partnerships you can't provide
+
+The strongest outcome of this chapter isn't "I found a gap." It's "I know specifically why this is worth building — or why it isn't."
 </details>
 
 <details>
